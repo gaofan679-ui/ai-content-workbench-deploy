@@ -88,6 +88,72 @@ class DeploymentTests(unittest.TestCase):
             "https://files.example/a.zip",
         )
 
+    def test_empty_environment_selects_first_install(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            result = deploy.detect_install_context(
+                str(root / "AIContentWorkbench"), str(root / ".codex" / "skills")
+            )
+            self.assertEqual(result["install_mode"], "first_install")
+
+    def test_managed_environment_selects_upgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            skills = root / ".codex" / "skills"
+            (workbench / "系统文件_无需打开").mkdir(parents=True)
+            managed = skills / "customer-workbench-deployer"
+            managed.mkdir(parents=True)
+            (managed / "SKILL.md").write_text("managed", encoding="utf-8")
+            result = deploy.detect_install_context(str(workbench), str(skills))
+            self.assertEqual(result["install_mode"], "incremental_upgrade")
+
+    def test_partial_environment_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            skills = root / ".codex" / "skills" / "customer-workbench-deployer"
+            skills.mkdir(parents=True)
+            (skills / "SKILL.md").write_text("managed", encoding="utf-8")
+            with self.assertRaises(deploy.DeploymentError):
+                deploy.detect_install_context(
+                    str(root / "AIContentWorkbench"), str(root / ".codex" / "skills")
+                )
+
+    def test_bundle_ticket_selects_platform_and_mode(self) -> None:
+        now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        artifacts = []
+        for platform_name in ("macos", "windows"):
+            for mode in ("first_install", "incremental_upgrade"):
+                artifacts.append(
+                    {
+                        "platform": platform_name,
+                        "install_mode": mode,
+                        "manifest_url": "https://example.invalid/manifest.json",
+                        "package_url": "https://example.invalid/package.zip?secret=redacted",
+                        "package_size_bytes": 123,
+                        "package_sha256": "a" * 64,
+                    }
+                )
+        ticket = {
+            "schema_version": 2,
+            "ticket_id": "bundle-ticket-0001",
+            "customer_id": "test-machine",
+            "issued_at": now.isoformat(),
+            "expires_at": (now + dt.timedelta(hours=1)).isoformat(),
+            "product_id": "ai-content-workbench",
+            "version": "1.5.1",
+            "artifacts": artifacts,
+        }
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            with mock.patch.object(deploy, "platform_name", return_value="macos"):
+                selected, context = deploy.normalize_ticket_for_host(
+                    ticket, str(root / "AIContentWorkbench"), str(root / ".codex" / "skills")
+                )
+            self.assertEqual(selected["platform"], "macos")
+            self.assertEqual(selected["install_mode"], "first_install")
+            self.assertEqual(context["selection"], "automatic_platform_and_install_state")
+
 
 if __name__ == "__main__":
     unittest.main()

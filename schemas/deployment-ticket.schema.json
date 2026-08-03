@@ -2,27 +2,69 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/ai-content-workbench/deployment-ticket.schema.json",
   "title": "AI 内容工作台部署票据",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version", "ticket_id", "customer_id", "issued_at", "expires_at",
-    "product_id", "version", "platform", "install_mode", "manifest_url",
-    "package_url", "package_size_bytes", "package_sha256"
-  ],
-  "properties": {
-    "schema_version": {"const": 1},
-    "ticket_id": {"type": "string", "minLength": 8, "maxLength": 120},
-    "customer_id": {"type": "string", "minLength": 2, "maxLength": 120},
-    "issued_at": {"type": "string", "format": "date-time"},
-    "expires_at": {"type": "string", "format": "date-time"},
-    "product_id": {"const": "ai-content-workbench"},
-    "version": {"type": "string"},
-    "platform": {"enum": ["macos", "windows"]},
-    "install_mode": {"enum": ["incremental_upgrade", "first_install"]},
-    "manifest_url": {"type": "string", "minLength": 1},
-    "package_url": {"type": "string", "minLength": 1},
-    "package_size_bytes": {"type": "integer", "minimum": 1},
-    "package_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "note": {"type": "string", "maxLength": 500}
-  }
+  "unevaluatedProperties": false,
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform", "install_mode", "manifest_url", "package_url",
+        "package_size_bytes", "package_sha256"
+      ],
+      "properties": {
+        "platform": {"enum": ["macos", "windows"]},
+        "install_mode": {"enum": ["incremental_upgrade", "first_install"]},
+        "manifest_url": {"type": "string", "minLength": 1},
+        "package_url": {"type": "string", "minLength": 1},
+        "package_size_bytes": {"type": "integer", "minimum": 1},
+        "package_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "common": {
+      "type": "object",
+      "required": [
+        "schema_version", "ticket_id", "customer_id", "issued_at", "expires_at",
+        "product_id", "version"
+      ],
+      "properties": {
+        "ticket_id": {"type": "string", "minLength": 8, "maxLength": 120},
+        "customer_id": {"type": "string", "minLength": 2, "maxLength": 120},
+        "issued_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "product_id": {"const": "ai-content-workbench"},
+        "version": {"type": "string"},
+        "note": {"type": "string", "maxLength": 500}
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {"$ref": "#/$defs/artifact"},
+        {
+          "type": "object",
+          "properties": {"schema_version": {"const": 1}}
+        }
+      ]
+    },
+    {
+      "allOf": [
+        {"$ref": "#/$defs/common"},
+        {
+          "type": "object",
+          "required": ["artifacts"],
+          "properties": {
+            "schema_version": {"const": 2},
+            "artifacts": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 4,
+              "items": {"$ref": "#/$defs/artifact"}
+            }
+          }
+        }
+      ]
+    }
+  ]
 }

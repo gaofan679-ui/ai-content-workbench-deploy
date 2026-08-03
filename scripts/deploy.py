@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import glob
 import hashlib
 import json
 import os
@@ -29,6 +30,21 @@ import zipfile
 
 PRODUCT_ID = "ai-content-workbench"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+MANAGED_SKILL_IDS = {
+    "ai-commercial-video-remix", "ai-model-asset-codex", "ai-network-doctor",
+    "ai-video-decompose-gemini", "ai-video-editing-post", "ai-video-experience-deposit",
+    "ai-video-generation-api", "ai-video-generation-pack", "ai-video-generation-qc",
+    "ai-video-generation-runner", "ai-video-image-assets", "ai-video-motion-preflight",
+    "ai-video-motion-transfer", "ai-video-person-assets", "ai-video-product-assets",
+    "ai-video-product-rewrite", "ai-video-real-person-assets",
+    "ai-video-remix-contract-protocol", "ai-video-scene-assets", "ai-video-storyboard",
+    "ai-video-workflow-codex", "aigc-video-prompt-codex",
+    "article-visual-publishing-workflow", "clean-image-generation-executor",
+    "commerce-ai-workbench", "content-positioning-interview", "copywriting-workflow",
+    "customer-workbench-deployer", "libtv-cli", "social-copy-extract",
+    "talking-head-video-workflow", "topic-selection-workflow",
+    "xhs-cover-style-replication", "xhs-live-photo", "xhs-viral-clone",
+}
 
 
 class DeploymentError(RuntimeError):
@@ -147,6 +163,53 @@ def validate_ticket(ticket: dict[str, Any]) -> None:
         )
 
 
+def validate_bundle_ticket(ticket: dict[str, Any]) -> None:
+    require_fields(
+        ticket,
+        (
+            "schema_version", "ticket_id", "customer_id", "issued_at", "expires_at",
+            "product_id", "version", "artifacts",
+        ),
+        "自动识别部署票据",
+    )
+    if ticket["schema_version"] != 2 or ticket["product_id"] != PRODUCT_ID:
+        raise DeploymentError("自动识别部署票据类型不匹配。")
+    issued = parse_time(str(ticket["issued_at"]), "issued_at")
+    expires = parse_time(str(ticket["expires_at"]), "expires_at")
+    now = utc_now()
+    if expires <= issued or now > expires:
+        raise DeploymentError("部署票据已过期或有效期无效，请申请新票据。")
+    if issued > now + dt.timedelta(minutes=10):
+        raise DeploymentError("部署票据签发时间晚于当前时间，请检查电脑时间。")
+    artifacts = ticket["artifacts"]
+    if not isinstance(artifacts, list) or not artifacts:
+        raise DeploymentError("自动识别部署票据没有可用客户包。")
+    seen: set[tuple[str, str]] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            raise DeploymentError("自动识别部署票据的客户包记录格式无效。")
+        require_fields(
+            artifact,
+            (
+                "platform", "install_mode", "manifest_url", "package_url",
+                "package_size_bytes", "package_sha256",
+            ),
+            "客户包记录",
+        )
+        key = (str(artifact["platform"]), str(artifact["install_mode"]))
+        if key[0] not in {"macos", "windows"} or key[1] not in {
+            "first_install", "incremental_upgrade",
+        }:
+            raise DeploymentError("客户包记录的平台或安装模式无效。")
+        if key in seen:
+            raise DeploymentError("自动识别部署票据包含重复客户包。")
+        seen.add(key)
+        if not isinstance(artifact["package_size_bytes"], int) or artifact["package_size_bytes"] <= 0:
+            raise DeploymentError("客户包记录的文件大小无效。")
+        if not SHA256_RE.fullmatch(str(artifact["package_sha256"])):
+            raise DeploymentError("客户包记录的 SHA-256 无效。")
+
+
 def validate_manifest(manifest: dict[str, Any], ticket: dict[str, Any]) -> None:
     require_fields(
         manifest,
@@ -221,6 +284,117 @@ def resolve_skills_home(explicit: str | None) -> Path:
     return existing[0]
 
 
+def _workbench_state(path: Path) -> str:
+    if not path.exists():
+        return "absent"
+    if not path.is_dir():
+        return "conflict"
+    try:
+        if not any(path.iterdir()):
+            return "empty"
+    except OSError:
+        return "conflict"
+    markers = (
+        "系统文件_无需打开", "01_素材入口", "02_项目工作区", "03_最终成果",
+        "00_DO_NOT_DELETE_Core_Config", "01_Inbox", "02_Projects", "03_Outputs",
+    )
+    return "managed" if any((path / marker).exists() for marker in markers) else "conflict"
+
+
+def _managed_skill_count(path: Path) -> int:
+    if not path.is_dir():
+        return 0
+    return sum(1 for skill_id in MANAGED_SKILL_IDS if (path / skill_id / "SKILL.md").is_file())
+
+
+def detect_install_context(workbench_arg: str | None, skills_arg: str | None) -> dict[str, Any]:
+    if workbench_arg:
+        workbench_candidates = [Path(workbench_arg).expanduser().resolve()]
+    elif os.environ.get("AI_WORKBENCH_HOME"):
+        workbench_candidates = [Path(os.environ["AI_WORKBENCH_HOME"]).expanduser().resolve()]
+    else:
+        workbench_candidates = []
+        if os.name == "nt":
+            workbench_candidates.append(Path("C:/AIContentWorkbench"))
+        workbench_candidates.append((Path.home() / "AIContentWorkbench").resolve())
+    states = [(path, _workbench_state(path)) for path in workbench_candidates]
+    meaningful = [(path, state) for path, state in states if state in {"managed", "conflict"}]
+    if len(meaningful) > 1 or any(state == "conflict" for _, state in states):
+        raise DeploymentError("工作台目录存在冲突或无法唯一判断；当前只读检查已停止。")
+    workbench = meaningful[0][0] if meaningful else workbench_candidates[0]
+
+    if skills_arg:
+        skills_candidates = [Path(skills_arg).expanduser().resolve()]
+    elif os.environ.get("CODEX_SKILLS_HOME"):
+        skills_candidates = [Path(os.environ["CODEX_SKILLS_HOME"]).expanduser().resolve()]
+    else:
+        skills_candidates = [
+            (Path.home() / ".codex" / "skills").resolve(),
+            (Path.home() / ".agents" / "skills").resolve(),
+        ]
+    skill_states = [(path, _managed_skill_count(path)) for path in skills_candidates]
+    managed_roots = [(path, count) for path, count in skill_states if count > 0]
+    if len(managed_roots) > 1:
+        raise DeploymentError("发现两处工作台能力目录，无法安全选择；当前只读检查已停止。")
+    skills_home = managed_roots[0][0] if managed_roots else skills_candidates[0]
+    wb_managed = any(state == "managed" for _, state in states)
+    skills_managed = bool(managed_roots)
+    if wb_managed and skills_managed:
+        mode = "incremental_upgrade"
+    elif not wb_managed and not skills_managed:
+        mode = "first_install"
+    else:
+        raise DeploymentError("工作台和工作流只发现了一部分，属于混合残留状态；不会自动安装或升级。")
+    return {
+        "install_mode": mode,
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "workbench_states": {str(path): state for path, state in states},
+        "managed_skill_roots": {str(path): count for path, count in skill_states if count > 0},
+        "write_performed": False,
+    }
+
+
+def normalize_ticket_for_host(
+    ticket: dict[str, Any], workbench_arg: str | None, skills_arg: str | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if ticket.get("schema_version") == 1:
+        validate_ticket(ticket)
+        context = {
+            "install_mode": ticket["install_mode"],
+            "workbench": str(resolve_workbench(workbench_arg, str(ticket["install_mode"]))),
+            "skills_home": str(resolve_skills_home(skills_arg)),
+            "selection": "legacy_ticket_explicit_mode",
+            "write_performed": False,
+        }
+        return ticket, context
+    validate_bundle_ticket(ticket)
+    host_platform = platform_name()
+    if host_platform not in {"macos", "windows"}:
+        raise DeploymentError(f"当前系统识别为 {host_platform}，尚未开放自动部署。")
+    context = detect_install_context(workbench_arg, skills_arg)
+    matches = [
+        item for item in ticket["artifacts"]
+        if item["platform"] == host_platform and item["install_mode"] == context["install_mode"]
+    ]
+    if len(matches) != 1:
+        raise DeploymentError("票据中没有唯一匹配当前电脑的客户包。")
+    artifact = matches[0]
+    normalized = {
+        "schema_version": 1,
+        "ticket_id": ticket["ticket_id"],
+        "customer_id": ticket["customer_id"],
+        "issued_at": ticket["issued_at"],
+        "expires_at": ticket["expires_at"],
+        "product_id": ticket["product_id"],
+        "version": ticket["version"],
+        **artifact,
+    }
+    validate_ticket(normalized)
+    context["selection"] = "automatic_platform_and_install_state"
+    return normalized, context
+
+
 def disk_check(workbench: Path, package_size: int) -> None:
     anchor = workbench if workbench.exists() else workbench.parent
     while not anchor.exists() and anchor != anchor.parent:
@@ -229,6 +403,80 @@ def disk_check(workbench: Path, package_size: int) -> None:
     required = max(package_size * 4, 500 * 1024 * 1024)
     if free < required:
         raise DeploymentError("磁盘空间不足，至少需要约 500 MB 可用空间。")
+
+
+TOOL_ALTERNATIVES = {
+    "python_runtime": ("python3", "python", "py"),
+    "node": ("node",),
+    "npm": ("npm", "npm.cmd"),
+    "ffmpeg": ("ffmpeg",),
+    "ffprobe": ("ffprobe",),
+    "curl": ("curl", "curl.exe"),
+}
+
+
+def known_tool_paths(name: str) -> list[Path]:
+    names = [name]
+    if os.name == "nt" and not name.lower().endswith((".exe", ".cmd")):
+        names.extend([f"{name}.exe", f"{name}.cmd"])
+    roots: list[Path] = []
+    if os.name == "nt":
+        for variable, suffixes in (
+            ("ProgramFiles", ("nodejs",)),
+            ("LOCALAPPDATA", ("Microsoft/WinGet/Links",)),
+            ("ProgramData", ("chocolatey/bin",)),
+            ("USERPROFILE", ("scoop/shims",)),
+        ):
+            base = os.environ.get(variable)
+            if base:
+                roots.extend(Path(base) / suffix for suffix in suffixes)
+        local = os.environ.get("LOCALAPPDATA")
+        if local and name in {"python", "python3"}:
+            roots.extend(
+                Path(item) for item in glob.glob(str(Path(local) / "Programs/Python/Python*/python.exe"))
+            )
+    else:
+        roots.extend(Path(item) for item in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"))
+    return [root / executable for root in roots for executable in names]
+
+
+def resolve_required_tool(tool_id: str) -> dict[str, Any]:
+    alternatives = TOOL_ALTERNATIVES.get(tool_id)
+    if not alternatives:
+        raise DeploymentError(f"版本清单包含未知依赖：{tool_id}")
+    for name in alternatives:
+        found = shutil.which(name)
+        if found:
+            return {"status": "pass", "path": found, "resolution_source": "path"}
+    for name in alternatives:
+        for candidate in known_tool_paths(name):
+            if candidate.is_file():
+                return {
+                    "status": "pass",
+                    "path": str(candidate),
+                    "resolution_source": "known_location",
+                    "path_refresh_recommended": True,
+                }
+    return {
+        "status": "block",
+        "message": "未找到必需工具；请先运行部署包里的中文环境体检和依赖助手。",
+    }
+
+
+def environment_report(manifest: dict[str, Any]) -> dict[str, Any]:
+    required = manifest.get("required_tools") or []
+    if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
+        raise DeploymentError("版本清单 required_tools 格式无效。")
+    tools = {tool_id: resolve_required_tool(tool_id) for tool_id in required}
+    missing = [tool_id for tool_id, item in tools.items() if item["status"] == "block"]
+    return {
+        "status": "blocked" if missing else "ready",
+        "profile": manifest.get("dependency_profile") or "legacy_manifest",
+        "required_tools": required,
+        "tools": tools,
+        "missing_required": missing,
+        "write_performed": False,
+    }
 
 
 def sha256_file(path: Path) -> str:
@@ -300,17 +548,20 @@ def write_receipt(
     manifest: dict[str, Any],
     ticket_source: str,
     backup_record: Path,
+    environment: dict[str, Any],
 ) -> Path:
     record = json.loads(backup_record.read_text(encoding="utf-8"))
     if record.get("status") != "installed":
         raise DeploymentError("备份记录没有标记为安装完成。")
     identity_actions = 0
+    installed_identity_files = 0
     module_receipt_path: Path | None = None
     for action in record.get("actions") or []:
         if action.get("label") == "模块安装记录":
             module_receipt_path = Path(str(action.get("target") or "")).expanduser().resolve()
             continue
         if action.get("status") == "kept_existing":
+            identity_actions += 1
             continue
         if action.get("status") != "installed":
             raise DeploymentError("备份记录包含未完成的安装动作。")
@@ -319,11 +570,15 @@ def write_receipt(
         if not source_sha or source_sha != installed_sha:
             raise DeploymentError("安装后文件指纹核验没有通过。")
         identity_actions += 1
+        installed_identity_files += 1
     if module_receipt_path is None or not module_receipt_path.is_file():
         raise DeploymentError("找不到升级包生成的模块安装记录。")
     module_receipt = json.loads(module_receipt_path.read_text(encoding="utf-8"))
     if module_receipt.get("post_install_tree_verification") != "passed":
         raise DeploymentError("模块安装记录没有通过安装后指纹核验。")
+    expected_actions = manifest.get("post_install_identity_actions")
+    if expected_actions is not None and identity_actions != int(expected_actions):
+        raise DeploymentError("安装动作数量与不可变版本清单不一致。")
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
@@ -346,6 +601,8 @@ def write_receipt(
         "backup_record": str(backup_record),
         "post_install_tree_verification": "passed",
         "post_install_identity_actions_checked": identity_actions,
+        "post_install_files_hash_verified": installed_identity_files,
+        "environment_preflight": environment,
         "paid_calls": 0,
         "external_uploads": 0,
         "rollback": "requires_separate_explicit_confirmation",
@@ -356,22 +613,126 @@ def write_receipt(
     return receipt_path
 
 
-def load_context(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any], Path, Path]:
-    ticket = fetch_json(args.ticket)
-    validate_ticket(ticket)
+def verify_first_install(source_skills: Path, skills_home: Path, workbench: Path) -> int:
+    source_dirs = sorted(path for path in source_skills.iterdir() if path.is_dir())
+    if len(source_dirs) != 35:
+        raise DeploymentError("首次安装包内工作流数量不是预期的 35 项。")
+    checked = 0
+    for source_dir in source_dirs:
+        target_dir = skills_home / source_dir.name
+        if not (target_dir / "SKILL.md").is_file():
+            raise DeploymentError(f"首次安装后缺少工作流：{source_dir.name}")
+        for source_file in sorted(path for path in source_dir.rglob("*") if path.is_file()):
+            relative = source_file.relative_to(source_dir)
+            target_file = target_dir / relative
+            if not target_file.is_file() or sha256_file(source_file) != sha256_file(target_file):
+                raise DeploymentError(f"首次安装后文件身份不一致：{source_dir.name}/{relative}")
+            checked += 1
+    required = (
+        workbench / "AGENTS.md",
+        workbench / "04_使用教程" / "04_打开使用教程.html",
+        workbench / "系统文件_无需打开" / "config" / "customer_config.env",
+    )
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise DeploymentError("首次安装后缺少工作台核心文件。")
+    return checked
+
+
+def run_first_install(
+    package_root: Path,
+    package_dir: Path,
+    workbench: Path,
+    skills_home: Path,
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    ticket_source: str,
+    environment: dict[str, Any],
+) -> Path:
+    if workbench.exists() and any(workbench.iterdir()):
+        raise DeploymentError("首次安装目标不是空目录，尚未写入。")
+    if _managed_skill_count(skills_home):
+        raise DeploymentError("首次安装目标已经存在工作台能力，尚未写入。")
+    if manifest["platform"] == "macos":
+        installer = package_dir / "mac" / "tools" / "install_ai_content_workbench.sh"
+        if not installer.is_file():
+            raise DeploymentError("Mac 首次安装包缺少正式安装器。")
+        result = subprocess.run(
+            ["bash", str(installer)],
+            input=f"{workbench}\n{skills_home}\nYES\n",
+            text=True,
+            capture_output=True,
+        )
+    else:
+        installer = package_dir / "installer" / "Install_AI_Content_Workbench.ps1"
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if not installer.is_file() or not powershell:
+            raise DeploymentError("Windows 首次安装包缺少正式安装器或 PowerShell。")
+        result = subprocess.run(
+            [
+                powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(installer),
+                "-WorkspaceRoot", str(workbench), "-CodexSkillsHome", str(skills_home),
+            ],
+            text=True,
+            capture_output=True,
+        )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "首次安装器没有返回说明").strip()
+        raise DeploymentError(f"首次安装器阻塞：{message[-1200:]}")
+    checked = verify_first_install(package_dir / "codex_skills", skills_home, workbench)
+    receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
+    receipt_path = receipt_dir / f"{safe_id}.json"
+    receipt = {
+        "schema_version": 1,
+        "status": "installed_and_verified",
+        "installed_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "ticket_id": ticket["ticket_id"],
+        "customer_id": ticket["customer_id"],
+        "ticket_source": redacted_location(ticket_source),
+        "product_id": PRODUCT_ID,
+        "version": manifest["version"],
+        "release_tag": manifest["release_tag"],
+        "release_id": manifest["release_id"],
+        "platform": manifest["platform"],
+        "install_mode": "first_install",
+        "package_sha256": manifest["package_sha256"],
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "backup_record": "not_applicable_fresh_environment",
+        "post_install_tree_verification": "passed",
+        "post_install_identity_files_checked": checked,
+        "environment_preflight": environment,
+        "paid_calls": 0,
+        "external_uploads": 0,
+        "rollback": "fresh_install_cleanup_requires_separate_explicit_confirmation",
+    }
+    temporary = receipt_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, receipt_path)
+    return receipt_path
+
+
+def load_context(
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], dict[str, Any], Path, Path, dict[str, Any]]:
+    raw_ticket = fetch_json(args.ticket)
+    ticket, detection = normalize_ticket_for_host(raw_ticket, args.workbench, args.skills_home)
     manifest_source = args.manifest or str(ticket["manifest_url"])
     manifest = fetch_json(manifest_source)
     validate_manifest(manifest, ticket)
-    workbench = resolve_workbench(args.workbench, str(ticket["install_mode"]))
-    skills_home = resolve_skills_home(args.skills_home)
+    workbench = Path(detection["workbench"])
+    skills_home = Path(detection["skills_home"])
     disk_check(workbench, int(ticket["package_size_bytes"]))
-    return ticket, manifest, workbench, skills_home
+    return ticket, manifest, workbench, skills_home, detection
 
 
 def inspect(args: argparse.Namespace) -> int:
-    ticket, manifest, workbench, skills_home = load_context(args)
+    ticket, manifest, workbench, skills_home, detection = load_context(args)
+    environment = environment_report(manifest)
     result = {
-        "status": "ready_for_confirmation",
+        "status": "ready_for_confirmation" if environment["status"] == "ready" else "blocked_environment",
         "write_performed": False,
         "ticket_id": ticket["ticket_id"],
         "customer_id": ticket["customer_id"],
@@ -382,19 +743,29 @@ def inspect(args: argparse.Namespace) -> int:
         "release_tag": manifest["release_tag"],
         "release_status": manifest["status"],
         "install_mode": manifest["install_mode"],
+        "automatic_detection": detection,
         "workbench": str(workbench),
         "skills_home": str(skills_home),
         "package_sha256": manifest["package_sha256"],
-        "next_step": "Explain scope and backup boundary, then wait for explicit approval.",
+        "environment": environment,
+        "next_step": (
+            "Explain scope and backup boundary, then wait for explicit approval."
+            if environment["status"] == "ready"
+            else "Run the Chinese preflight/dependency helper, then inspect again."
+        ),
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
+    return 0 if environment["status"] == "ready" else 2
 
 
 def apply(args: argparse.Namespace) -> int:
     if args.confirm_write != "YES":
         raise DeploymentError("尚未获得明确写入确认；当前没有下载或安装。")
-    ticket, manifest, workbench, skills_home = load_context(args)
+    ticket, manifest, workbench, skills_home, detection = load_context(args)
+    environment = environment_report(manifest)
+    if environment["status"] != "ready":
+        missing = "、".join(environment["missing_required"])
+        raise DeploymentError(f"当前电脑缺少必需工具：{missing}。尚未下载或写入，请先完成环境体检。")
     with tempfile.TemporaryDirectory(prefix="aicw-deploy-") as temporary_name:
         temporary = Path(temporary_name)
         archive = temporary / str(manifest["package_file_name"])
@@ -410,23 +781,29 @@ def apply(args: argparse.Namespace) -> int:
         safe_extract(archive, extracted)
         package_root = extracted / str(manifest["package_root"])
         package_dir = package_root / str(manifest["package_subdir"])
-        upgrade_script = package_dir / "scripts" / "module_upgrade.py"
-        module_manifest = package_dir / "module_manifest.json"
-        if not upgrade_script.is_file() or not module_manifest.is_file():
-            raise DeploymentError("客户包缺少升级工具或模块清单。")
-        base = [
-            sys.executable,
-            str(upgrade_script),
-            "--package", str(package_dir),
-            "--workbench", str(workbench),
-            "--skills-home", str(skills_home),
-        ]
-        run_upgrade(base + ["--check"])
-        installed = run_upgrade(base + ["--apply", "--confirm-write", "YES"])
-        backup_record = backup_record_from_output(installed.stdout)
-        receipt = write_receipt(
-            workbench, skills_home, ticket, manifest, args.ticket, backup_record
-        )
+        if manifest["install_mode"] == "incremental_upgrade":
+            upgrade_script = package_dir / "scripts" / "module_upgrade.py"
+            module_manifest = package_dir / "module_manifest.json"
+            if not upgrade_script.is_file() or not module_manifest.is_file():
+                raise DeploymentError("客户包缺少升级工具或模块清单。")
+            base = [
+                sys.executable,
+                str(upgrade_script),
+                "--package", str(package_dir),
+                "--workbench", str(workbench),
+                "--skills-home", str(skills_home),
+            ]
+            run_upgrade(base + ["--check"])
+            installed = run_upgrade(base + ["--apply", "--confirm-write", "YES"])
+            backup_record = backup_record_from_output(installed.stdout)
+            receipt = write_receipt(
+                workbench, skills_home, ticket, manifest, args.ticket, backup_record, environment
+            )
+        else:
+            receipt = run_first_install(
+                package_root, package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment
+            )
+            backup_record = None
     print(
         json.dumps(
             {
@@ -434,8 +811,10 @@ def apply(args: argparse.Namespace) -> int:
                 "version": manifest["version"],
                 "platform": manifest["platform"],
                 "package_sha256": manifest["package_sha256"],
-                "backup_record": str(backup_record),
+                "backup_record": str(backup_record) if backup_record else "not_applicable_first_install",
                 "receipt": str(receipt),
+                "automatic_detection": detection,
+                "environment_preflight": environment,
                 "paid_calls": 0,
                 "external_uploads": 0,
                 "next_step": "Restart Codex and run the no-cost business recognition checks.",

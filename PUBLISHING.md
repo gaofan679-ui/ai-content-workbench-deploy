@@ -22,7 +22,7 @@ GitHub 公共固定入口
 
 1. 从唯一母版构建新的版本号，历史版本和历史 Release 不覆盖。
 2. 完成范围反向对账、敏感扫描、隔离安装、安装后指纹和发布前检查。
-3. 新建 `releases/<version>/<platform>.json`，登记文件名、大小和 SHA-256。
+3. 分别新建 Mac / Windows 的首次安装和升级清单，登记文件名、大小和 SHA-256。
 4. 建立新 Git tag，例如 `workbench-v1.4.3`；不要移动旧 tag。
 5. 先创建 GitHub Draft Release，附齐公开安装器/版本证据后再发布。
 6. 在仓库设置中启用 GitHub Release immutability；发布后核对不可变标识和资产证明。
@@ -30,7 +30,7 @@ GitHub 公共固定入口
 
 ## 客户包下载控制
 
-优先方案是 Cloudflare R2 私有桶的预签名 GET URL：
+优先方案是腾讯云 COS 等私有对象存储的预签名 GET URL：
 
 - 对象键包含版本和 SHA-256，上传后不覆盖。
 - 每个客户/每台测试电脑单独签发票据。
@@ -42,17 +42,17 @@ GitHub 公共固定入口
 
 ## 签发票据
 
-先在 R2 或其他私有对象存储生成限时下载 URL，再运行：
+先在私有对象存储生成四个限时下载 URL，再运行：
 
 ```text
 python scripts/make_ticket.py \
   --customer-id <客户或测试机标识> \
-  --manifest releases/<version>/<platform>.json \
-  --manifest-url <该版本清单在不可变 Git tag 下的 HTTPS URL> \
-  --package-url <限时包 URL> \
+  --artifact <Mac首次安装清单> <不可变清单URL> <限时包URL> \
+  --artifact <Mac升级清单> <不可变清单URL> <限时包URL> \
+  --artifact <Windows首次安装清单> <不可变清单URL> <限时包URL> \
+  --artifact <Windows升级清单> <不可变清单URL> <限时包URL> \
   --expires-in-hours 24 \
   --output <仓库外的安全目录>/<客户标识>.ticket.json
 ```
 
 票据文件和完整票据链接只能单独发给对应客户，不提交 GitHub。
-

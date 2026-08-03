@@ -26,8 +26,6 @@ def main() -> int:
         ROOT / "CODEX_DEPLOYMENT.md",
         ROOT / "PILOT_TEST.md",
         ROOT / "channels" / "pilot.json",
-        ROOT / "releases" / "v1.4.2" / "macos.json",
-        ROOT / "releases" / "v1.4.2" / "windows.json",
         ROOT / "scripts" / "deploy.py",
         ROOT / "scripts" / "make_ticket.py",
         ROOT / "scripts" / "summarize_receipts.py",
@@ -41,26 +39,32 @@ def main() -> int:
     except Exception as exc:
         errors.append(f"pilot 通道无法解析：{exc}")
         channel = {}
-    for platform_name, relative in (channel.get("manifests") or {}).items():
-        path = ROOT / relative
-        if not path.is_file():
-            errors.append(f"通道引用不存在：{relative}")
+    for platform_name, modes in (channel.get("manifests") or {}).items():
+        if not isinstance(modes, dict):
+            errors.append(f"平台清单必须区分首次安装和升级：{platform_name}")
             continue
-        try:
-            manifest = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            errors.append(f"版本清单无法解析：{relative}: {exc}")
-            continue
-        if manifest.get("platform") != platform_name:
-            errors.append(f"平台登记不一致：{relative}")
-        if manifest.get("version") != channel.get("version"):
-            errors.append(f"版本登记不一致：{relative}")
-        if manifest.get("release_tag") != channel.get("release_tag"):
-            errors.append(f"Release 标签不一致：{relative}")
-        if not SHA_RE.fullmatch(str(manifest.get("package_sha256") or "")):
-            errors.append(f"包 SHA-256 无效：{relative}")
-        if "package_url" in manifest:
-            errors.append(f"公开版本清单不得包含客户包 URL：{relative}")
+        for install_mode, relative in modes.items():
+            path = ROOT / relative
+            if not path.is_file():
+                errors.append(f"通道引用不存在：{relative}")
+                continue
+            try:
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                errors.append(f"版本清单无法解析：{relative}: {exc}")
+                continue
+            if manifest.get("platform") != platform_name:
+                errors.append(f"平台登记不一致：{relative}")
+            if manifest.get("install_mode") != install_mode:
+                errors.append(f"安装模式登记不一致：{relative}")
+            if manifest.get("version") != channel.get("version"):
+                errors.append(f"版本登记不一致：{relative}")
+            if manifest.get("release_tag") != channel.get("release_tag"):
+                errors.append(f"Release 标签不一致：{relative}")
+            if not SHA_RE.fullmatch(str(manifest.get("package_sha256") or "")):
+                errors.append(f"包 SHA-256 无效：{relative}")
+            if "package_url" in manifest:
+                errors.append(f"公开版本清单不得包含客户包 URL：{relative}")
 
     public_files = [
         path
