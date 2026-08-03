@@ -18,6 +18,29 @@ SPEC.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_optional_caption_component_is_visible_but_does_not_block_base_install(self):
+        module = deploy
+        with mock.patch.object(module, "resolve_required_tool", return_value={"status": "pass", "path": "/test"}):
+            report = module.environment_report(
+                {
+                    "dependency_profile": "full",
+                    "required_tools": ["python_runtime"],
+                    "optional_local_components": {
+                        "caption_alignment": {
+                            "delivery_status": "configured_after_install",
+                            "first_model_download_gb": 1.2,
+                            "external_uploads": 0,
+                            "paid_calls": 0,
+                        }
+                    },
+                }
+            )
+        self.assertEqual(report["status"], "ready")
+        self.assertEqual(
+            report["optional_local_components"]["caption_alignment"]["status"],
+            "setup_required_after_install",
+        )
+        self.assertFalse(report["optional_local_components"]["caption_alignment"]["blocking_for_base_install"])
     def ticket(self) -> dict:
         now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         platform_name = deploy.platform_name()

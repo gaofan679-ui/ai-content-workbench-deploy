@@ -469,12 +469,29 @@ def environment_report(manifest: dict[str, Any]) -> dict[str, Any]:
         raise DeploymentError("版本清单 required_tools 格式无效。")
     tools = {tool_id: resolve_required_tool(tool_id) for tool_id in required}
     missing = [tool_id for tool_id, item in tools.items() if item["status"] == "block"]
+    optional_components = manifest.get("optional_local_components") or {}
+    if not isinstance(optional_components, dict):
+        raise DeploymentError("版本清单 optional_local_components 格式无效。")
+    component_report = {}
+    for component_id, component in optional_components.items():
+        if not isinstance(component, dict):
+            raise DeploymentError("版本清单包含无效的本地可选组件。")
+        component_report[str(component_id)] = {
+            "status": "setup_required_after_install"
+            if component.get("delivery_status") == "configured_after_install"
+            else "included",
+            "first_model_download_gb": component.get("first_model_download_gb"),
+            "external_uploads": component.get("external_uploads", 0),
+            "paid_calls": component.get("paid_calls", 0),
+            "blocking_for_base_install": False,
+        }
     return {
         "status": "blocked" if missing else "ready",
         "profile": manifest.get("dependency_profile") or "legacy_manifest",
         "required_tools": required,
         "tools": tools,
         "missing_required": missing,
+        "optional_local_components": component_report,
         "write_performed": False,
     }
 
@@ -817,7 +834,11 @@ def apply(args: argparse.Namespace) -> int:
                 "environment_preflight": environment,
                 "paid_calls": 0,
                 "external_uploads": 0,
-                "next_step": "Restart Codex and run the no-cost business recognition checks.",
+                "next_step": (
+                    "Restart Codex, run the no-cost business recognition checks, then confirm the one-time local caption component/model setup before precise-caption work."
+                    if environment.get("optional_local_components")
+                    else "Restart Codex and run the no-cost business recognition checks."
+                ),
             },
             ensure_ascii=False,
             indent=2,
