@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "product_id": "ai-content-workbench",
+  "module_id": "workbench-cumulative-update",
+  "version": "1.4.2",
+  "release_tag": "workbench-v1.4.2-pilot.1",
+  "release_id": "workbench-source-2026-08-03.5",
+  "channel": "pilot",
+  "status": "single_machine_candidate_not_batch_release",
+  "platform": "macos",
+  "supported_systems": ["macOS"],
+  "install_mode": "incremental_upgrade",
+  "package_file_name": "AI内容工作台-v1.4.2-Mac完整验收候选版.zip",
+  "package_root": "AI内容工作台累计升级包-v1.4.2-Mac完整验收候选版",
+  "package_subdir": "系统文件_无需打开",
+  "package_size_bytes": 3911124,
+  "package_sha256": "46a0bc73502c83752d2b36367f0ddba7fcdb751ae65876fb18334edd059b184b",
+  "installed_skill_count": 35,
+  "post_install_identity_actions": 177,
+  "paid_calls_during_validation": 0,
+  "external_uploads_during_validation": 0,
+  "real_machine_status": "pending_single_machine_pilot"
+}
+

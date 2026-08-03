@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "product_id": "ai-content-workbench",
+  "channel": "pilot",
+  "updated_at": "2026-08-03T20:35:00+08:00",
+  "version": "1.4.2",
+  "release_tag": "workbench-v1.4.2-pilot.1",
+  "manifests": {
+    "macos": "releases/v1.4.2/macos.json",
+    "windows": "releases/v1.4.2/windows.json"
+  },
+  "batch_release_allowed": false,
+  "real_machine_validation": {
+    "macos": "pending",
+    "windows": "pending"
+  }
+}
+
