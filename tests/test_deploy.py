@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 
@@ -39,7 +40,9 @@ class DeploymentTests(unittest.TestCase):
         }
 
     def test_valid_ticket(self) -> None:
-        deploy.validate_ticket(self.ticket())
+        ticket = self.ticket()
+        with mock.patch.object(deploy, "platform_name", return_value=ticket["platform"]):
+            deploy.validate_ticket(ticket)
 
     def test_expired_ticket_is_blocked(self) -> None:
         ticket = self.ticket()
@@ -88,4 +91,3 @@ class DeploymentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
