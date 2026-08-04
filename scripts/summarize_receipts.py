@@ -47,6 +47,7 @@ def main() -> int:
                 "release_tag": receipt.get("release_tag"),
                 "package_sha256": receipt.get("package_sha256"),
                 "identity_actions_checked": receipt.get("post_install_identity_actions_checked"),
+                "customer_summary": receipt.get("customer_summary"),
                 "status": "pass" if passed else "blocked",
             }
         )
@@ -67,4 +68,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

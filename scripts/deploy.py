@@ -496,6 +496,59 @@ def environment_report(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def customer_summary(
+    manifest: dict[str, Any],
+    detection: dict[str, Any],
+    environment: dict[str, Any],
+    *,
+    phase: str,
+) -> dict[str, Any]:
+    """Return the same plain-language state used by the customer-facing receipt.
+
+    Technical fields remain available in the internal receipt, but this summary
+    is deliberately free of paths, hashes, ticket IDs and implementation names.
+    """
+    platform_label = {"macos": "Mac", "windows": "Windows", "wsl2": "Windows 子系统"}.get(
+        str(manifest.get("platform")), str(manifest.get("platform"))
+    )
+    mode_label = "首次安装" if detection.get("install_mode") == "first_install" else "已有工作台升级"
+    if phase == "inspect":
+        if environment.get("status") == "ready":
+            conclusion = "环境已具备，可以进入确认步骤"
+            next_steps = ["确认本次更新范围", "明确回复“同意执行”后才会写入", "写入完成后重新打开工作台"]
+        else:
+            conclusion = "暂时不能继续，需要先补齐环境"
+            next_steps = ["按提示补齐缺少的基础工具", "重新打开部署入口做一次检查", "检查通过后再确认写入"]
+        missing = environment.get("missing_required") or []
+        missing_labels = {
+            "python_runtime": "Python",
+            "node": "Node.js",
+            "npm": "npm",
+            "ffmpeg": "ffmpeg",
+            "ffprobe": "ffprobe",
+            "curl": "网络访问工具",
+        }
+        return {
+            "当前结论": conclusion,
+            "这次将处理": [f"按当前电脑识别为{mode_label}", f"准备安装或更新 {manifest.get('version')} 版本", "保留已有内容，不整理旧目录"],
+            "原有内容": "项目、素材、成果和个人配置不会在检查阶段被修改。",
+            "还需要你做什么": next_steps,
+            "缺少的基础工具": [missing_labels.get(str(item), "必要基础工具") for item in missing],
+            "从哪里继续": f"这是 {platform_label} 电脑；检查通过后回到部署入口，完成确认即可。",
+        }
+    optional = environment.get("optional_local_components") or {}
+    next_steps = ["重新打开工作台应用，让本次更新完整生效", "打开“AI 内容工作台｜从这里开始”查看中文入口", "按需要配置自己的账号或授权"]
+    if optional:
+        next_steps[2] = "首次使用精确字幕等本地能力时，按提示准备约 1.2 GB 的本地模型"
+    return {
+        "当前结论": "本次安装或升级已完成，可以继续使用",
+        "这次完成了什么": [f"已完成 {manifest.get('version')} 版本更新", "已完成安装后文件核对", "已补充中文使用入口和新旧目录说明", "没有自动上传素材或产生模型费用"],
+        "原有内容是否保留": "已有项目、素材、成果、个人配置和历史目录均保留在原处，没有自动改名、移动或删除。",
+        "还需要你做什么": next_steps,
+        "从哪里继续": "打开工作台根目录中的“AI 内容工作台｜从这里开始”，再进入使用教程。",
+    }
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -620,6 +673,12 @@ def write_receipt(
         "post_install_identity_actions_checked": identity_actions,
         "post_install_files_hash_verified": installed_identity_files,
         "environment_preflight": environment,
+        "customer_summary": customer_summary(
+            manifest,
+            {"install_mode": manifest.get("install_mode")},
+            environment,
+            phase="apply",
+        ),
         "paid_calls": 0,
         "external_uploads": 0,
         "rollback": "requires_separate_explicit_confirmation",
@@ -721,6 +780,12 @@ def run_first_install(
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
         "environment_preflight": environment,
+        "customer_summary": customer_summary(
+            manifest,
+            {"install_mode": "first_install"},
+            environment,
+            phase="apply",
+        ),
         "paid_calls": 0,
         "external_uploads": 0,
         "rollback": "fresh_install_cleanup_requires_separate_explicit_confirmation",
@@ -765,6 +830,7 @@ def inspect(args: argparse.Namespace) -> int:
         "skills_home": str(skills_home),
         "package_sha256": manifest["package_sha256"],
         "environment": environment,
+        "customer_summary": customer_summary(manifest, detection, environment, phase="inspect"),
         "next_step": (
             "Explain scope and backup boundary, then wait for explicit approval."
             if environment["status"] == "ready"
@@ -832,6 +898,7 @@ def apply(args: argparse.Namespace) -> int:
                 "receipt": str(receipt),
                 "automatic_detection": detection,
                 "environment_preflight": environment,
+                "customer_summary": customer_summary(manifest, detection, environment, phase="apply"),
                 "paid_calls": 0,
                 "external_uploads": 0,
                 "next_step": (
