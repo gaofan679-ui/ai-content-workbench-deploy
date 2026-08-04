@@ -1305,27 +1305,14 @@ def inspect(args: argparse.Namespace) -> int:
         environment.get("bootstrap") or {}
     ).get("status") == "available"
     result = {
-        "status": "ready_for_confirmation" if can_confirm else "blocked_environment",
-        "write_performed": False,
-        "ticket_id": ticket["ticket_id"],
-        "customer_id": ticket["customer_id"],
-        "ticket_source": redacted_location(args.ticket),
-        "expires_at": ticket["expires_at"],
-        "current_platform": platform_name(),
-        "target_version": manifest["version"],
-        "release_tag": manifest["release_tag"],
-        "release_status": manifest["status"],
-        "install_mode": manifest["install_mode"],
-        "automatic_detection": detection,
-        "workbench": str(workbench),
-        "skills_home": str(skills_home),
-        "package_sha256": manifest["package_sha256"],
-        "environment": environment,
+        # Keep the normal stdout customer-safe.  Detailed ticket, path, hash
+        # and dependency evidence remains in the internal receipt/log path.
         "customer_summary": customer_summary(manifest, detection, environment, phase="inspect"),
+        "write_performed": False,
         "next_step": (
-            "Explain scope and backup boundary; after one approval, automatically repair supported base tools and continue."
+            "回复“同意执行”后，自动补齐支持的基础环境并继续安装。"
             if can_confirm
-            else "Ask the computer administrator to enable the official system installer, then inspect again."
+            else "请先由电脑管理员启用系统安装工具，再重新检查。"
         ),
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -1390,23 +1377,11 @@ def apply(args: argparse.Namespace) -> int:
     print(
         json.dumps(
             {
-                "status": "installed_and_verified",
-                "version": manifest["version"],
-                "platform": manifest["platform"],
-                "package_sha256": manifest["package_sha256"],
-                "backup_record": str(backup_record) if backup_record else "not_applicable_first_install",
-                "receipt": str(receipt),
-                "automatic_detection": detection,
-                "environment_preflight": environment,
-                "dependency_bootstrap": bootstrap_result,
+                # Technical receipt, hashes and backup paths stay on disk;
+                # stdout is deliberately limited to the customer result.
                 "customer_summary": customer_summary(manifest, detection, environment, phase="apply"),
-                "paid_calls": 0,
-                "external_uploads": 0,
-                "next_step": (
-                    "Restart Codex, run the no-cost business recognition checks, then confirm the one-time local caption component/model setup before precise-caption work."
-                    if environment.get("optional_local_components")
-                    else "Restart Codex and run the no-cost business recognition checks."
-                ),
+                "write_performed": True,
+                "next_step": "重新打开工作台，再按中文入口做一次不付费、不上传的功能确认。",
             },
             ensure_ascii=False,
             indent=2,
