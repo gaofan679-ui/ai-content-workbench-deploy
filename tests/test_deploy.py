@@ -41,6 +41,64 @@ class DeploymentTests(unittest.TestCase):
             "setup_required_after_install",
         )
         self.assertFalse(report["optional_local_components"]["caption_alignment"]["blocking_for_base_install"])
+
+    def test_windows_bootstrap_capability_is_read_only_and_available_with_winget(self):
+        with mock.patch.object(deploy.shutil, "which", return_value="C:/Windows/winget.exe"):
+            capability = deploy.dependency_bootstrap_capability("windows", ["node", "npm", "ffmpeg"])
+        self.assertEqual(capability["status"], "available")
+        self.assertEqual(capability["method"], "winget_official_packages")
+        self.assertEqual(capability["missing"], ["node", "npm", "ffmpeg"])
+
+    def test_bootstrap_deduplicates_node_and_ffmpeg_packages(self):
+        manifest = {
+            "platform": "windows",
+            "required_tools": ["node", "npm", "ffmpeg", "ffprobe"],
+        }
+        environment = {
+            "status": "blocked",
+            "missing_required": ["node", "npm", "ffmpeg", "ffprobe"],
+            "bootstrap": {
+                "status": "available",
+                "installer": "C:/Windows/winget.exe",
+                "method": "winget_official_packages",
+            },
+        }
+        with mock.patch.object(deploy, "_run_dependency_install", return_value=[0]) as runner, \
+             mock.patch.object(deploy, "refresh_process_path"), \
+             mock.patch.object(
+                 deploy,
+                 "environment_report",
+                 return_value={"status": "ready", "missing_required": [], "bootstrap": {"status": "not_needed"}},
+             ):
+            result = deploy.bootstrap_missing_dependencies(manifest, environment)
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["attempted_tools"], ["Node.js", "ffmpeg"])
+        self.assertEqual(runner.call_count, 2)
+
+    def test_bootstrap_stops_when_official_installer_is_unavailable(self):
+        manifest = {"platform": "windows", "required_tools": ["ffmpeg"]}
+        environment = {
+            "status": "blocked",
+            "missing_required": ["ffmpeg"],
+            "bootstrap": {"status": "installer_unavailable", "missing": ["ffmpeg"]},
+        }
+        with self.assertRaises(deploy.DeploymentError):
+            deploy.bootstrap_missing_dependencies(manifest, environment)
+
+    def test_customer_summary_promises_auto_repair_only_when_supported(self):
+        summary = deploy.customer_summary(
+            {"platform": "windows", "version": "1.5.3"},
+            {"install_mode": "first_install"},
+            {
+                "status": "blocked",
+                "missing_required": ["python_runtime", "ffmpeg"],
+                "bootstrap": {"status": "available"},
+                "optional_local_components": {},
+            },
+            phase="inspect",
+        )
+        self.assertIn("自动补齐", summary["当前结论"])
+        self.assertEqual(summary["还需要你做什么"][0], "明确回复“同意执行”")
     def ticket(self) -> dict:
         now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         platform_name = deploy.platform_name()
@@ -66,6 +124,12 @@ class DeploymentTests(unittest.TestCase):
         ticket = self.ticket()
         with mock.patch.object(deploy, "platform_name", return_value=ticket["platform"]):
             deploy.validate_ticket(ticket)
+
+    def test_ticket_with_short_remaining_window_is_not_used_for_bootstrap(self) -> None:
+        ticket = self.ticket()
+        ticket["expires_at"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5)).isoformat()
+        with self.assertRaises(deploy.DeploymentError):
+            deploy.ensure_ticket_time_window(ticket)
 
     def test_expired_ticket_is_blocked(self) -> None:
         ticket = self.ticket()

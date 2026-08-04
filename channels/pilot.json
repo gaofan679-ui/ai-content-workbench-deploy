@@ -2,18 +2,18 @@
   "schema_version": 1,
   "product_id": "ai-content-workbench",
   "channel": "pilot",
-  "updated_at": "2026-08-04T14:25:00+08:00",
+  "updated_at": "2026-08-04T15:40:15+08:00",
   "version": "1.5.3",
-  "release_tag": "workbench-v1.5.3-pilot.4",
-  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.5.3-pilot.4/CODEX_DEPLOYMENT.md",
+  "release_tag": "workbench-v1.5.3-pilot.5",
+  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.5.3-pilot.5/CODEX_DEPLOYMENT.md",
   "manifests": {
     "macos": {
-      "first_install": "releases/v1.5.3/macos-first-install.json",
-      "incremental_upgrade": "releases/v1.5.3/macos-upgrade.json"
+      "first_install": "releases/v1.5.3-pilot.5/macos-first-install.json",
+      "incremental_upgrade": "releases/v1.5.3-pilot.5/macos-upgrade.json"
     },
     "windows": {
-      "first_install": "releases/v1.5.3/windows-first-install.json",
-      "incremental_upgrade": "releases/v1.5.3/windows-upgrade.json"
+      "first_install": "releases/v1.5.3-pilot.5/windows-first-install.json",
+      "incremental_upgrade": "releases/v1.5.3-pilot.5/windows-upgrade.json"
     }
   },
   "batch_release_allowed": false,

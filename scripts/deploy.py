@@ -33,6 +33,7 @@ import zipfile
 PRODUCT_ID = "ai-content-workbench"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 BROWSER_FALLBACK_TIMEOUT_SECONDS = 90
+MINIMUM_TICKET_REMAINING_SECONDS = 20 * 60
 MANAGED_SKILL_IDS = {
     "ai-commercial-video-remix", "ai-model-asset-codex", "ai-network-doctor",
     "ai-video-decompose-gemini", "ai-video-editing-post", "ai-video-experience-deposit",
@@ -66,6 +67,13 @@ def parse_time(value: str, field: str) -> dt.datetime:
     if parsed.tzinfo is None:
         raise DeploymentError(f"{field} 必须包含时区。")
     return parsed.astimezone(dt.timezone.utc)
+
+
+def ensure_ticket_time_window(ticket: dict[str, Any]) -> None:
+    """Avoid installing system dependencies when the package link is nearly expired."""
+    remaining = parse_time(str(ticket["expires_at"]), "expires_at") - utc_now()
+    if remaining.total_seconds() < MINIMUM_TICKET_REMAINING_SECONDS:
+        raise DeploymentError("部署链接剩余有效时间不足，尚未修改电脑；请先申请新的部署链接。")
 
 
 def platform_name() -> str:
@@ -643,6 +651,84 @@ TOOL_ALTERNATIVES = {
     "curl": ("curl", "curl.exe"),
 }
 
+# The deployment entry may install only the small set of base tools required by
+# the selected immutable manifest.  Package IDs are public package-manager
+# identifiers, not customer data.  We deliberately do not try to install
+# winget/Homebrew themselves or change proxy, DNS, PATH in the registry, or
+# antivirus settings.
+WINDOWS_BOOTSTRAP_PACKAGES = {
+    "python_runtime": ("Python", "Python.Python.3.12"),
+    "node": ("Node.js", "OpenJS.NodeJS.LTS"),
+    "npm": ("Node.js", "OpenJS.NodeJS.LTS"),
+    "ffmpeg": ("ffmpeg", "Gyan.FFmpeg"),
+    "ffprobe": ("ffmpeg", "Gyan.FFmpeg"),
+}
+MACOS_BREW_PACKAGES = {
+    "python_runtime": ("Python", "python"),
+    "node": ("Node.js", "node"),
+    "npm": ("Node.js", "node"),
+    "ffmpeg": ("ffmpeg", "ffmpeg"),
+    "ffprobe": ("ffmpeg", "ffmpeg"),
+}
+
+
+def _first_existing_executable(names: tuple[str, ...]) -> Path | None:
+    """Find a package manager without relying on a stale PATH only."""
+    for name in names:
+        found = shutil.which(name)
+        if found:
+            return Path(found)
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+        candidates: list[Path] = []
+        if local_app_data:
+            candidates.append(Path(local_app_data) / "Microsoft/WindowsApps/winget.exe")
+        if system_root:
+            candidates.append(Path(system_root) / "System32/winget.exe")
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+    else:
+        candidates = [Path("/opt/homebrew/bin/brew"), Path("/usr/local/bin/brew")]
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def refresh_process_path() -> None:
+    """Refresh only this process after a package-manager install."""
+    if os.name == "nt":
+        machine = os.environ.get("Path") or ""
+        machine_path = os.environ.get("PATH", "")
+        # Read the current user/machine values when available.  This does not
+        # write the registry and leaves customer system settings untouched.
+        try:
+            import winreg  # type: ignore
+
+            values: list[str] = []
+            for hive, subkey in (
+                (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+                (winreg.HKEY_CURRENT_USER, r"Environment"),
+            ):
+                try:
+                    with winreg.OpenKey(hive, subkey) as key:
+                        value, _ = winreg.QueryValueEx(key, "Path")
+                        if value:
+                            values.append(str(value))
+                except OSError:
+                    continue
+            if values:
+                machine = ";".join(values)
+        except ImportError:
+            machine = os.environ.get("PATH", "")
+        os.environ["PATH"] = ";".join(item for item in (machine, machine_path) if item)
+        return
+    additions = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
+    current = os.environ.get("PATH", "")
+    os.environ["PATH"] = ":".join(dict.fromkeys(additions + ([current] if current else [])))
+
 
 def known_tool_paths(name: str) -> list[Path]:
     names = [name]
@@ -692,12 +778,163 @@ def resolve_required_tool(tool_id: str) -> dict[str, Any]:
     }
 
 
+def dependency_bootstrap_capability(platform_id: str, missing: list[str]) -> dict[str, Any]:
+    """Describe whether one confirmed bootstrap can repair the environment.
+
+    This is read-only.  It is intentionally separate from
+    ``environment_report`` so inspection never installs software.
+    """
+    if not missing:
+        return {"status": "not_needed", "installer": None, "missing": []}
+    if platform_id == "windows":
+        unsupported = [item for item in missing if item not in WINDOWS_BOOTSTRAP_PACKAGES]
+        installer = _first_existing_executable(("winget",))
+        if unsupported:
+            return {
+                "status": "unsupported_missing_tools",
+                "installer": str(installer) if installer else None,
+                "missing": missing,
+                "unsupported": unsupported,
+            }
+        if installer is None:
+            return {
+                "status": "installer_unavailable",
+                "installer": None,
+                "missing": missing,
+                "message": "Windows 当前没有可用的官方安装工具。",
+            }
+        return {
+            "status": "available",
+            "installer": str(installer),
+            "missing": missing,
+            "method": "winget_official_packages",
+        }
+    if platform_id == "macos":
+        unsupported = [item for item in missing if item not in MACOS_BREW_PACKAGES]
+        installer = _first_existing_executable(("brew",))
+        if unsupported:
+            return {
+                "status": "unsupported_missing_tools",
+                "installer": str(installer) if installer else None,
+                "missing": missing,
+                "unsupported": unsupported,
+            }
+        if installer is None:
+            return {
+                "status": "installer_unavailable",
+                "installer": None,
+                "missing": missing,
+                "message": "Mac 当前没有可用的 Homebrew 安装工具。",
+            }
+        return {
+            "status": "available",
+            "installer": str(installer),
+            "missing": missing,
+            "method": "homebrew_official_packages",
+        }
+    return {
+        "status": "unsupported_platform",
+        "installer": None,
+        "missing": missing,
+    }
+
+
+def _run_dependency_install(command: list[str], *, env: dict[str, str] | None = None) -> list[int]:
+    """Run one official installer with a bounded retry; keep output internal."""
+    exit_codes: list[int] = []
+    for attempt in range(1, 4):
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=900,
+                check=False,
+                env=env,
+            )
+            exit_codes.append(int(result.returncode))
+            if result.returncode == 0:
+                break
+        except (OSError, subprocess.SubprocessError):
+            exit_codes.append(-1)
+        if attempt < 3:
+            time.sleep(1)
+    return exit_codes
+
+
+def bootstrap_missing_dependencies(manifest: dict[str, Any], environment: dict[str, Any]) -> dict[str, Any]:
+    """Install missing base tools after the single explicit write confirmation.
+
+    Only official package-manager identifiers are used.  A failed bootstrap
+    never changes proxy/DNS/registry settings and never starts workbench
+    installation until the post-bootstrap preflight passes.
+    """
+    missing = [str(item) for item in environment.get("missing_required") or []]
+    capability = environment.get("bootstrap") or dependency_bootstrap_capability(
+        str(manifest.get("platform")), missing
+    )
+    if capability.get("status") != "available":
+        raise DeploymentError(
+            "当前电脑缺少基础环境，但系统没有可用的官方自动安装能力；"
+            "请先由电脑管理员启用系统安装工具，完成后重新发送部署指令。"
+        )
+    platform_id = str(manifest.get("platform"))
+    packages: dict[str, tuple[str, str]] = {}
+    catalog = WINDOWS_BOOTSTRAP_PACKAGES if platform_id == "windows" else MACOS_BREW_PACKAGES
+    for tool_id in missing:
+        label, package_id = catalog[tool_id]
+        packages[package_id] = (label, package_id)
+    installer = str(capability["installer"])
+    records: list[dict[str, Any]] = []
+    for package_id, (label, _) in packages.items():
+        if platform_id == "windows":
+            command = [
+                installer,
+                "install",
+                "--id", package_id,
+                "--exact",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+            ]
+            env = None
+        else:
+            command = [installer, "install", package_id]
+            env = {
+                **os.environ,
+                "HOMEBREW_NO_AUTO_UPDATE": "1",
+                "HOMEBREW_NO_INSTALL_CLEANUP": "1",
+            }
+        exit_codes = _run_dependency_install(command, env=env)
+        refresh_process_path()
+        records.append({
+            "tool": label,
+            "package_id": package_id,
+            "attempts": len(exit_codes),
+            "exit_codes": exit_codes,
+        })
+    refresh_process_path()
+    after = environment_report(manifest)
+    if after["status"] != "ready":
+        raise DeploymentError(
+            "基础环境已尝试自动补齐，但复查仍未通过；没有继续安装工作台。"
+            "请确认系统权限提示已允许，并重新发送部署指令。"
+        )
+    return {
+        "status": "passed",
+        "method": capability.get("method"),
+        "attempted_tools": [record["tool"] for record in records],
+        "records": records,
+        "environment_after": after,
+    }
+
+
 def environment_report(manifest: dict[str, Any]) -> dict[str, Any]:
     required = manifest.get("required_tools") or []
     if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
         raise DeploymentError("版本清单 required_tools 格式无效。")
     tools = {tool_id: resolve_required_tool(tool_id) for tool_id in required}
     missing = [tool_id for tool_id, item in tools.items() if item["status"] == "block"]
+    bootstrap = dependency_bootstrap_capability(str(manifest.get("platform")), missing)
     optional_components = manifest.get("optional_local_components") or {}
     if not isinstance(optional_components, dict):
         raise DeploymentError("版本清单 optional_local_components 格式无效。")
@@ -720,6 +957,7 @@ def environment_report(manifest: dict[str, Any]) -> dict[str, Any]:
         "required_tools": required,
         "tools": tools,
         "missing_required": missing,
+        "bootstrap": bootstrap,
         "optional_local_components": component_report,
         "write_performed": False,
     }
@@ -742,12 +980,20 @@ def customer_summary(
     )
     mode_label = "首次安装" if detection.get("install_mode") == "first_install" else "已有工作台升级"
     if phase == "inspect":
+        bootstrap = environment.get("bootstrap") or {}
         if environment.get("status") == "ready":
             conclusion = "环境已具备，可以进入确认步骤"
             next_steps = ["确认本次更新范围", "明确回复“同意执行”后才会写入", "写入完成后重新打开工作台"]
+        elif bootstrap.get("status") == "available":
+            conclusion = "发现缺少基础环境；确认后会自动补齐并继续安装"
+            next_steps = [
+                "明确回复“同意执行”",
+                "允许系统出现的必要权限提示",
+                "等待自动补齐环境、安装并验收",
+            ]
         else:
-            conclusion = "暂时不能继续，需要先补齐环境"
-            next_steps = ["按提示补齐缺少的基础工具", "重新打开部署入口做一次检查", "检查通过后再确认写入"]
+            conclusion = "当前电脑暂时不能自动补齐环境"
+            next_steps = ["请电脑管理员启用系统安装工具", "重新发送同一部署指令", "检查通过后再确认安装"]
         missing = environment.get("missing_required") or []
         missing_labels = {
             "python_runtime": "Python",
@@ -1055,8 +1301,11 @@ def load_context(
 def inspect(args: argparse.Namespace) -> int:
     ticket, manifest, workbench, skills_home, detection = load_context(args)
     environment = environment_report(manifest)
+    can_confirm = environment["status"] == "ready" or (
+        environment.get("bootstrap") or {}
+    ).get("status") == "available"
     result = {
-        "status": "ready_for_confirmation" if environment["status"] == "ready" else "blocked_environment",
+        "status": "ready_for_confirmation" if can_confirm else "blocked_environment",
         "write_performed": False,
         "ticket_id": ticket["ticket_id"],
         "customer_id": ticket["customer_id"],
@@ -1074,23 +1323,32 @@ def inspect(args: argparse.Namespace) -> int:
         "environment": environment,
         "customer_summary": customer_summary(manifest, detection, environment, phase="inspect"),
         "next_step": (
-            "Explain scope and backup boundary, then wait for explicit approval."
-            if environment["status"] == "ready"
-            else "Run the Chinese preflight/dependency helper, then inspect again."
+            "Explain scope and backup boundary; after one approval, automatically repair supported base tools and continue."
+            if can_confirm
+            else "Ask the computer administrator to enable the official system installer, then inspect again."
         ),
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if environment["status"] == "ready" else 2
+    return 0 if can_confirm else 2
 
 
 def apply(args: argparse.Namespace) -> int:
     if args.confirm_write != "YES":
         raise DeploymentError("尚未获得明确写入确认；当前没有下载或安装。")
     ticket, manifest, workbench, skills_home, detection = load_context(args)
+    ensure_ticket_time_window(ticket)
     environment = environment_report(manifest)
     if environment["status"] != "ready":
-        missing = "、".join(environment["missing_required"])
-        raise DeploymentError(f"当前电脑缺少必需工具：{missing}。尚未下载或写入，请先完成环境体检。")
+        bootstrap_result = bootstrap_missing_dependencies(manifest, environment)
+        environment = bootstrap_result["environment_after"]
+        validate_ticket(ticket)
+    else:
+        bootstrap_result = {
+            "status": "not_needed",
+            "method": None,
+            "attempted_tools": [],
+            "records": [],
+        }
     with tempfile.TemporaryDirectory(prefix="aicw-deploy-") as temporary_name:
         temporary = Path(temporary_name)
         archive = temporary / str(manifest["package_file_name"])
@@ -1140,6 +1398,7 @@ def apply(args: argparse.Namespace) -> int:
                 "receipt": str(receipt),
                 "automatic_detection": detection,
                 "environment_preflight": environment,
+                "dependency_bootstrap": bootstrap_result,
                 "customer_summary": customer_summary(manifest, detection, environment, phase="apply"),
                 "paid_calls": 0,
                 "external_uploads": 0,
