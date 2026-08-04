@@ -97,6 +97,24 @@ def _local_path(source: str) -> Path | None:
     return None
 
 
+def public_source_alternatives(source: str) -> list[str]:
+    """Return the immutable jsDelivr equivalent for a public GitHub source."""
+    alternatives = [source]
+    parsed = urllib.parse.urlsplit(source)
+    path = parsed.path.strip("/")
+    parts = path.split("/") if path else []
+    mirror_path: str | None = None
+    if parsed.netloc == "raw.githubusercontent.com" and len(parts) >= 4:
+        owner, repo, ref = parts[:3]
+        mirror_path = f"/gh/{owner}/{repo}@{ref}/{'/'.join(parts[3:])}"
+    elif parsed.netloc == "github.com" and len(parts) >= 5 and parts[3] == "blob":
+        owner, repo, _, ref = parts[:4]
+        mirror_path = f"/gh/{owner}/{repo}@{ref}/{'/'.join(parts[4:])}"
+    if mirror_path:
+        alternatives.append(urllib.parse.urlunsplit(("https", "cdn.jsdelivr.net", mirror_path, "", "")))
+    return alternatives
+
+
 def is_windows_host() -> bool:
     return os.name == "nt"
 
@@ -302,22 +320,24 @@ def fetch_bytes(source: str, *, timeout: int = 60) -> bytes:
     parsed = urllib.parse.urlsplit(source)
     if parsed.scheme != "https":
         raise DeploymentError("远程地址必须使用 HTTPS。")
-    request = urllib.request.Request(source, headers={"User-Agent": "AIContentWorkbench-Deployer/1"})
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
-    except Exception as exc:
+    for candidate in public_source_alternatives(source):
+        request = urllib.request.Request(candidate, headers={"User-Agent": "AIContentWorkbench-Deployer/1"})
         try:
-            return curl_fetch_bytes(source, timeout=timeout)
-        except DeploymentError as curl_exc:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except Exception:
+            pass
+        try:
+            return curl_fetch_bytes(candidate, timeout=timeout)
+        except DeploymentError:
             if is_windows_host():
                 try:
-                    return browser_fetch_bytes(source)
-                except DeploymentError as browser_exc:
-                    raise DeploymentError(
-                        "自动读取部署票据失败；已尝试系统网络工具和浏览器，但当前网络或安全软件仍阻止访问。"
-                    ) from browser_exc
-            raise DeploymentError("无法读取远程部署文件，请检查网络后再试。") from curl_exc
+                    return browser_fetch_bytes(candidate)
+                except DeploymentError:
+                    pass
+    if is_windows_host():
+        raise DeploymentError("自动读取部署票据失败；系统网络工具和浏览器均未能访问入口。")
+    raise DeploymentError("无法读取远程部署文件，请检查网络后再试。")
 
 
 def fetch_json(source: str) -> dict[str, Any]:

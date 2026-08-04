@@ -111,6 +111,32 @@ class DeploymentTests(unittest.TestCase):
             "https://files.example/a.zip",
         )
 
+    def test_github_source_has_immutable_jsdelivr_alternative(self) -> None:
+        source = "https://raw.githubusercontent.com/owner/repo/workbench-v1.5.3-pilot.3/releases/v1.5.3/windows-first-install.json"
+        self.assertEqual(
+            deploy.public_source_alternatives(source)[1],
+            "https://cdn.jsdelivr.net/gh/owner/repo@workbench-v1.5.3-pilot.3/releases/v1.5.3/windows-first-install.json",
+        )
+
+    def test_fetch_bytes_tries_public_mirror_after_direct_and_curl_fail(self) -> None:
+        source = "https://raw.githubusercontent.com/owner/repo/workbench-v1.5.3-pilot.3/README.md"
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self):
+                return b"mirror"
+
+        with mock.patch.object(
+            deploy.urllib.request, "urlopen", side_effect=[OSError("blocked"), Response()]
+        ), mock.patch.object(
+            deploy, "curl_fetch_bytes", side_effect=deploy.DeploymentError("blocked")
+        ):
+            self.assertEqual(deploy.fetch_bytes(source), b"mirror")
+
     def test_windows_browser_fallback_reads_ticket_after_direct_https_failure(self) -> None:
         with mock.patch.object(deploy, "is_windows_host", return_value=True), \
              mock.patch.object(

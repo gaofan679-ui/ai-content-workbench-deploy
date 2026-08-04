@@ -3,7 +3,7 @@
   "product_id": "ai-content-workbench",
   "module_id": "workbench-first-install",
   "version": "1.5.3",
-  "release_tag": "workbench-v1.5.3-pilot.3",
+  "release_tag": "workbench-v1.5.3-pilot.4",
   "release_id": "workbench-source-2026-08-04.2",
   "channel": "pilot",
   "status": "single_machine_candidate_not_batch_release",
