@@ -7,7 +7,7 @@
 把下面这段话和服务方单独发给你的“部署票据链接”一起交给 Codex。客户不需要手动下载 JSON、压缩包或上传文件：
 
 ```text
-请按这个固定入口帮我安装或升级 AI 内容工作台：先自动进行只读检查，判断这是全新安装还是已有工作台升级，并用中文告诉我结果、缺少什么以及哪些内容不会动。检查完成后只向我确认一次；我同意后，再选择匹配的客户包，自动读取票据、下载、校验、安装并生成验收回执。如果 Windows 直接联网失败，请自动改用系统 Edge 或 Chrome 读取和下载，不要让我手动处理 JSON、压缩包或上传文件。入口：https://github.com/gaofan679-ui/ai-content-workbench-deploy/blob/main/CODEX_DEPLOYMENT.md；部署票据：<服务方单独发送的限时链接>
+请按这个固定入口帮我安装或升级 AI 内容工作台：先自动进行只读检查，判断这是全新安装还是已有工作台升级，并用中文告诉我结果、缺少什么以及哪些内容不会动。检查完成后只向我确认一次；我同意后，再选择匹配的客户包，自动读取票据、下载、校验、安装并生成验收回执。如果 Windows 直接联网失败，请先自动使用系统网络工具，再尝试 Edge 或 Chrome；不要让我手动处理 JSON、压缩包或上传文件。入口（主入口打不开时可读取同一版本的备用入口）：https://github.com/gaofan679-ui/ai-content-workbench-deploy/blob/main/CODEX_DEPLOYMENT.md；https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.5.3-pilot.3/CODEX_DEPLOYMENT.md；部署票据：<服务方单独发送的限时链接>
 ```
 
 详细步骤见 [CODEX_DEPLOYMENT.md](CODEX_DEPLOYMENT.md)。
@@ -20,7 +20,8 @@
 - 客户包使用私有仓库授权或对象存储签名链接，不进入本仓库。
 - 限时链接是 bearer token，拿到链接的人在到期前都可能下载，不能转发或写入公开日志。
 - 安装器先核对版本清单、文件大小和 SHA-256，再解压和安装。
-- Windows 直接 HTTPS 读取失败时，安装器会在临时目录调用本机 Edge/Chrome 作为自动回退；客户不需要接触票据 JSON 或客户 ZIP。
+- Windows 或其他系统的 Python HTTPS 读取失败时，安装器会先调用系统自带的 curl（Windows 使用系统证书通道），再在 Windows 临时目录调用 Edge/Chrome 作为自动回退；客户不需要接触票据 JSON 或客户 ZIP。
+- 固定入口主站无法访问时，可以读取当前不可变版本的 jsDelivr 备用入口；它只镜像公开说明和版本清单，不包含客户包、票据或密钥。
 - 空工作台且没有同名工作流时选择首次安装；完整工作台和工作流同时存在时选择升级；只发现一部分或存在双目录时停止。
 - 安装器复用工作台升级包自己的备份和安装后指纹核验，不自行覆盖历史项目、素材、成果或配置。
 - 回滚会覆盖文件，必须单独确认，不会自动执行。

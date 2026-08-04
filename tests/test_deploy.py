@@ -118,8 +118,19 @@ class DeploymentTests(unittest.TestCase):
                  "urlopen",
                  side_effect=OSError("TLS blocked"),
              ), \
+             mock.patch.object(
+                 deploy, "curl_fetch_bytes", side_effect=deploy.DeploymentError("curl blocked")
+             ), \
              mock.patch.object(deploy, "browser_fetch_bytes", return_value=b'{"ok": true}'):
             self.assertEqual(deploy.fetch_bytes("https://example.invalid/ticket.json"), b'{"ok": true}')
+
+    def test_curl_fallback_reads_ticket_before_browser(self) -> None:
+        with mock.patch.object(deploy.urllib.request, "urlopen", side_effect=OSError("TLS blocked")), \
+             mock.patch.object(deploy, "curl_fetch_bytes", return_value=b'{"ok": true}') as curl_fetch, \
+             mock.patch.object(deploy, "browser_fetch_bytes") as browser_fetch:
+            self.assertEqual(deploy.fetch_bytes("https://example.invalid/ticket.json"), b'{"ok": true}')
+        curl_fetch.assert_called_once()
+        browser_fetch.assert_not_called()
 
     def test_browser_json_output_is_normalized(self) -> None:
         output = b'<html><body>{&quot;ticket_id&quot;:&quot;demo&quot;}</body></html>'
@@ -129,14 +140,27 @@ class DeploymentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             destination = Path(name) / "package.zip"
             with mock.patch.object(deploy, "is_windows_host", return_value=True), \
-                 mock.patch.object(
-                     deploy.urllib.request,
-                     "urlopen",
-                     side_effect=OSError("TLS blocked"),
-                 ), \
-                 mock.patch.object(deploy, "browser_download_file") as browser_download:
+             mock.patch.object(
+                 deploy.urllib.request,
+                 "urlopen",
+                 side_effect=OSError("TLS blocked"),
+             ), \
+             mock.patch.object(
+                 deploy, "curl_download_file", side_effect=deploy.DeploymentError("curl blocked")
+             ), \
+             mock.patch.object(deploy, "browser_download_file") as browser_download:
                 deploy.download_package("https://example.invalid/package.zip", destination)
             browser_download.assert_called_once_with("https://example.invalid/package.zip", destination)
+
+    def test_curl_fallback_downloads_package_before_browser(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            destination = Path(name) / "package.zip"
+            with mock.patch.object(deploy.urllib.request, "urlopen", side_effect=OSError("TLS blocked")), \
+                 mock.patch.object(deploy, "curl_download_file") as curl_download, \
+                 mock.patch.object(deploy, "browser_download_file") as browser_download:
+                deploy.download_package("https://example.invalid/package.zip", destination)
+            curl_download.assert_called_once_with("https://example.invalid/package.zip", destination)
+            browser_download.assert_not_called()
 
     def test_empty_environment_selects_first_install(self) -> None:
         with tempfile.TemporaryDirectory() as name:

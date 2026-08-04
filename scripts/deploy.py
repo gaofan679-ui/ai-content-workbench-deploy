@@ -190,6 +190,70 @@ def browser_fetch_bytes(source: str) -> bytes:
     raise DeploymentError(last_error or "系统浏览器无法读取部署票据。")
 
 
+def _curl_candidates() -> list[Path]:
+    """Find the built-in curl client without relying on a shell or PATH only."""
+    candidates: list[Path] = []
+    for name in ("curl", "curl.exe"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(Path(found))
+    if os.name == "nt":
+        system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+        if system_root:
+            candidates.append(Path(system_root) / "System32" / "curl.exe")
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key not in seen and candidate.is_file():
+            unique.append(candidate)
+            seen.add(key)
+    return unique
+
+
+def curl_fetch_bytes(source: str, *, timeout: int = 60) -> bytes:
+    """Read a remote resource with curl/Schannel when Python TLS is unavailable."""
+    last_error: str | None = None
+    for curl in _curl_candidates():
+        command = [
+            str(curl), "--fail", "--silent", "--show-error", "--location",
+            "--max-time", str(timeout), "--user-agent", "AIContentWorkbench-Deployer/1",
+            source,
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=timeout + 10, check=False)
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+            last_error = f"{curl.name} 未返回内容"
+        except (OSError, subprocess.SubprocessError):
+            last_error = f"{curl.name} 无法启动"
+    raise DeploymentError(last_error or "未找到可用的网络访问工具。")
+
+
+def curl_download_file(source: str, destination: Path, *, timeout: int = 180) -> None:
+    """Download to a temporary sibling file, then atomically move it into place."""
+    last_error: str | None = None
+    for curl in _curl_candidates():
+        partial = destination.with_name(destination.name + ".curl-part")
+        partial.unlink(missing_ok=True)
+        command = [
+            str(curl), "--fail", "--silent", "--show-error", "--location",
+            "--max-time", str(timeout), "--user-agent", "AIContentWorkbench-Deployer/1",
+            "--output", str(partial), source,
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=timeout + 15, check=False)
+            if result.returncode == 0 and partial.is_file() and partial.stat().st_size > 0:
+                os.replace(partial, destination)
+                return
+            last_error = f"{curl.name} 未完成下载"
+        except (OSError, subprocess.SubprocessError):
+            last_error = f"{curl.name} 无法启动"
+        finally:
+            partial.unlink(missing_ok=True)
+    raise DeploymentError(last_error or "未找到可用的网络访问工具。")
+
+
 def browser_download_file(source: str, destination: Path) -> None:
     """Download a package with the system browser after direct HTTPS fails."""
     browsers = system_browser_candidates()
@@ -243,14 +307,17 @@ def fetch_bytes(source: str, *, timeout: int = 60) -> bytes:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.read()
     except Exception as exc:
-        if is_windows_host():
-            try:
-                return browser_fetch_bytes(source)
-            except DeploymentError as browser_exc:
-                raise DeploymentError(
-                    "自动读取部署票据失败；已尝试 Windows 系统浏览器，但当前网络或安全软件仍阻止访问。"
-                ) from browser_exc
-        raise DeploymentError("无法读取远程部署文件，请检查网络后再试。") from exc
+        try:
+            return curl_fetch_bytes(source, timeout=timeout)
+        except DeploymentError as curl_exc:
+            if is_windows_host():
+                try:
+                    return browser_fetch_bytes(source)
+                except DeploymentError as browser_exc:
+                    raise DeploymentError(
+                        "自动读取部署票据失败；已尝试系统网络工具和浏览器，但当前网络或安全软件仍阻止访问。"
+                    ) from browser_exc
+            raise DeploymentError("无法读取远程部署文件，请检查网络后再试。") from curl_exc
 
 
 def fetch_json(source: str) -> dict[str, Any]:
@@ -714,16 +781,20 @@ def download_package(source: str, destination: Path) -> None:
         with urllib.request.urlopen(request, timeout=120) as response, destination.open("wb") as output:
             shutil.copyfileobj(response, output, length=1024 * 1024)
     except Exception as exc:
-        if is_windows_host():
-            try:
-                destination.unlink(missing_ok=True)
-                browser_download_file(source, destination)
-                return
-            except DeploymentError as browser_exc:
-                raise DeploymentError(
-                    "客户包自动下载失败；已尝试 Windows 系统浏览器，但当前网络或安全软件仍阻止访问。"
-                ) from browser_exc
-        raise DeploymentError("客户包下载失败，请检查网络后再试。") from exc
+        destination.unlink(missing_ok=True)
+        try:
+            curl_download_file(source, destination)
+            return
+        except DeploymentError as curl_exc:
+            if is_windows_host():
+                try:
+                    browser_download_file(source, destination)
+                    return
+                except DeploymentError as browser_exc:
+                    raise DeploymentError(
+                        "客户包自动下载失败；已尝试系统网络工具和浏览器，但当前网络或安全软件仍阻止访问。"
+                    ) from browser_exc
+            raise DeploymentError("客户包下载失败，请检查网络后再试。") from curl_exc
 
 
 def safe_extract(archive: Path, destination: Path) -> None:

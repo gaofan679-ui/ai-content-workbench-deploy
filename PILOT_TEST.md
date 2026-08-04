@@ -7,7 +7,7 @@
 1. 记录测试机编号、系统版本、当前工作台版本和真实 Skill 目录；不记录客户姓名、密钥或票据完整 URL。
 2. 把固定 GitHub 入口和该电脑自己的部署票据交给 Codex。
 3. Codex 自动运行 `inspect`，确认没有写入，并说明更新范围、备份边界和阻塞项；只读检查不要求使用者先确认。
-4. 如果 Windows 直接 HTTPS 读取失败，Codex 应自动调用 Edge/Chrome 读取票据和客户包，不要求使用者下载 JSON 或 ZIP。
+4. 如果 Python HTTPS 读取失败，Codex 应先自动调用系统 curl；Windows 仍失败时再自动调用 Edge/Chrome 读取票据和客户包，不要求使用者下载 JSON 或 ZIP。固定 GitHub 入口打不开时，使用同一不可变版本的 jsDelivr 备用入口。
 5. 使用者只在只读检查完成后明确回复一次“同意执行”，之后才运行 `apply`。
 6. 保存 `installed_and_verified` 回执；不要复制签名下载 URL。
 7. 重新打开 Codex，做不付费、不上传的业务识别测试。
@@ -27,7 +27,7 @@
 | 数据保护 | 历史项目、素材、成果和个人配置仍在原处 |
 | 重启识别 | 重新打开 Codex 后能识别图文、视频和本次重点工作流 |
 | 费用与上传 | 部署过程 `paid_calls=0`、`external_uploads=0` |
-| Windows 回退 | 直接 HTTPS 失败时 Edge/Chrome 自动回退成功；客户不手动处理文件 |
+| Windows 回退 | Python HTTPS 失败时系统 curl 或 Edge/Chrome 自动回退成功；客户不手动处理文件 |
 | 确认次数 | 只读检查前不索要确认，写入前只确认一次 |
 
 ## 失败即停止
