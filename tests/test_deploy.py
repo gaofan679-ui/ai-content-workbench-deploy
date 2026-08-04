@@ -111,6 +111,33 @@ class DeploymentTests(unittest.TestCase):
             "https://files.example/a.zip",
         )
 
+    def test_windows_browser_fallback_reads_ticket_after_direct_https_failure(self) -> None:
+        with mock.patch.object(deploy, "is_windows_host", return_value=True), \
+             mock.patch.object(
+                 deploy.urllib.request,
+                 "urlopen",
+                 side_effect=OSError("TLS blocked"),
+             ), \
+             mock.patch.object(deploy, "browser_fetch_bytes", return_value=b'{"ok": true}'):
+            self.assertEqual(deploy.fetch_bytes("https://example.invalid/ticket.json"), b'{"ok": true}')
+
+    def test_browser_json_output_is_normalized(self) -> None:
+        output = b'<html><body>{&quot;ticket_id&quot;:&quot;demo&quot;}</body></html>'
+        self.assertEqual(deploy._extract_browser_json(output), b'{"ticket_id": "demo"}')
+
+    def test_windows_browser_fallback_downloads_package_after_direct_https_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            destination = Path(name) / "package.zip"
+            with mock.patch.object(deploy, "is_windows_host", return_value=True), \
+                 mock.patch.object(
+                     deploy.urllib.request,
+                     "urlopen",
+                     side_effect=OSError("TLS blocked"),
+                 ), \
+                 mock.patch.object(deploy, "browser_download_file") as browser_download:
+                deploy.download_package("https://example.invalid/package.zip", destination)
+            browser_download.assert_called_once_with("https://example.invalid/package.zip", destination)
+
     def test_empty_environment_selects_first_install(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

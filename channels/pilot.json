@@ -2,9 +2,9 @@
   "schema_version": 1,
   "product_id": "ai-content-workbench",
   "channel": "pilot",
-  "updated_at": "2026-08-04T12:30:00+08:00",
+  "updated_at": "2026-08-04T13:05:00+08:00",
   "version": "1.5.3",
-  "release_tag": "workbench-v1.5.3-pilot.1",
+  "release_tag": "workbench-v1.5.3-pilot.2",
   "manifests": {
     "macos": {
       "first_install": "releases/v1.5.3/macos-first-install.json",

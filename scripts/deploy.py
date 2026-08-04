@@ -13,6 +13,7 @@ import argparse
 import datetime as dt
 import glob
 import hashlib
+import html
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 import urllib.parse
 import urllib.request
@@ -30,6 +32,7 @@ import zipfile
 
 PRODUCT_ID = "ai-content-workbench"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+BROWSER_FALLBACK_TIMEOUT_SECONDS = 90
 MANAGED_SKILL_IDS = {
     "ai-commercial-video-remix", "ai-model-asset-codex", "ai-network-doctor",
     "ai-video-decompose-gemini", "ai-video-editing-post", "ai-video-experience-deposit",
@@ -94,6 +97,138 @@ def _local_path(source: str) -> Path | None:
     return None
 
 
+def is_windows_host() -> bool:
+    return os.name == "nt"
+
+
+def system_browser_candidates() -> list[Path]:
+    """Return installed Windows browsers that can use the system network stack.
+
+    This fallback is deliberately limited to the customer's own Edge/Chrome.
+    It never opens a signed package URL in a public log and it stores downloads
+    only in the deployment process' temporary directory.
+    """
+    if not is_windows_host():
+        return []
+    candidates: list[Path] = []
+    for name in ("msedge.exe", "chrome.exe"):
+        found = shutil.which(name)
+        if found:
+            candidates.append(Path(found))
+    for variable, suffixes in (
+        ("ProgramFiles", ("Microsoft/Edge/Application/msedge.exe", "Google/Chrome/Application/chrome.exe")),
+        ("ProgramFiles(x86)", ("Microsoft/Edge/Application/msedge.exe", "Google/Chrome/Application/chrome.exe")),
+        ("LOCALAPPDATA", ("Microsoft/Edge/Application/msedge.exe", "Google/Chrome/Application/chrome.exe")),
+    ):
+        base = os.environ.get(variable)
+        if base:
+            candidates.extend(Path(base) / suffix for suffix in suffixes)
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key not in seen and candidate.is_file():
+            unique.append(candidate)
+            seen.add(key)
+    return unique
+
+
+def _browser_common_args(browser: Path, profile: Path) -> list[str]:
+    return [
+        str(browser),
+        "--headless=new",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        f"--user-data-dir={profile}",
+    ]
+
+
+def _extract_browser_json(output: bytes) -> bytes:
+    """Extract JSON from Edge/Chrome --dump-dom output without trusting HTML."""
+    text = output.decode("utf-8", errors="replace").strip()
+    candidates = [text]
+    if "<body" in text.lower():
+        body = re.sub(r"(?is).*?<body[^>]*>(.*?)</body>.*", r"\1", text)
+        candidates.append(html.unescape(re.sub(r"(?is)<[^>]+>", "", body)).strip())
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        return json.dumps(value, ensure_ascii=False).encode("utf-8")
+    raise DeploymentError("系统浏览器已打开，但没有读到有效的部署票据。")
+
+
+def browser_fetch_bytes(source: str) -> bytes:
+    """Read a remote JSON resource through Windows Edge/Chrome as a fallback."""
+    browsers = system_browser_candidates()
+    if not browsers:
+        raise DeploymentError("未找到可用的 Windows Edge 或 Chrome。")
+    last_error: str | None = None
+    for browser in browsers:
+        profile = Path(tempfile.mkdtemp(prefix="aicw-browser-profile-"))
+        try:
+            command = _browser_common_args(browser, profile) + [
+                "--virtual-time-budget=3000",
+                "--dump-dom",
+                source,
+            ]
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                timeout=BROWSER_FALLBACK_TIMEOUT_SECONDS,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout:
+                return _extract_browser_json(result.stdout)
+            last_error = f"{browser.name} 未返回内容"
+        except (OSError, subprocess.SubprocessError) as exc:
+            last_error = f"{browser.name} 无法启动"
+        finally:
+            shutil.rmtree(profile, ignore_errors=True)
+    raise DeploymentError(last_error or "系统浏览器无法读取部署票据。")
+
+
+def browser_download_file(source: str, destination: Path) -> None:
+    """Download a package with the system browser after direct HTTPS fails."""
+    browsers = system_browser_candidates()
+    if not browsers:
+        raise DeploymentError("未找到可用的 Windows Edge 或 Chrome。")
+    download_dir = destination.parent / "browser-download"
+    download_dir.mkdir(parents=True, exist_ok=True)
+    for browser in browsers:
+        profile = Path(tempfile.mkdtemp(prefix="aicw-browser-profile-"))
+        before = {path for path in download_dir.iterdir() if path.is_file()}
+        process: subprocess.Popen[bytes] | None = None
+        try:
+            command = _browser_common_args(browser, profile) + [
+                f"--download-dir={download_dir}",
+                "--disable-popup-blocking",
+                source,
+            ]
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            deadline = time.monotonic() + BROWSER_FALLBACK_TIMEOUT_SECONDS
+            while time.monotonic() < deadline:
+                candidates = [
+                    path for path in download_dir.iterdir()
+                    if path.is_file() and path not in before and not path.name.endswith(".crdownload")
+                ]
+                if candidates:
+                    newest = max(candidates, key=lambda path: path.stat().st_mtime)
+                    if newest.stat().st_size > 0:
+                        shutil.move(str(newest), str(destination))
+                        return
+                time.sleep(0.5)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        finally:
+            if process is not None and process.poll() is None:
+                process.terminate()
+            shutil.rmtree(profile, ignore_errors=True)
+    raise DeploymentError("系统浏览器未能完成客户包下载。")
+
+
 def fetch_bytes(source: str, *, timeout: int = 60) -> bytes:
     local = _local_path(source)
     if local is not None:
@@ -108,7 +243,14 @@ def fetch_bytes(source: str, *, timeout: int = 60) -> bytes:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.read()
     except Exception as exc:
-        raise DeploymentError(f"无法读取远程文件：{type(exc).__name__}") from exc
+        if is_windows_host():
+            try:
+                return browser_fetch_bytes(source)
+            except DeploymentError as browser_exc:
+                raise DeploymentError(
+                    "自动读取部署票据失败；已尝试 Windows 系统浏览器，但当前网络或安全软件仍阻止访问。"
+                ) from browser_exc
+        raise DeploymentError("无法读取远程部署文件，请检查网络后再试。") from exc
 
 
 def fetch_json(source: str) -> dict[str, Any]:
@@ -572,7 +714,16 @@ def download_package(source: str, destination: Path) -> None:
         with urllib.request.urlopen(request, timeout=120) as response, destination.open("wb") as output:
             shutil.copyfileobj(response, output, length=1024 * 1024)
     except Exception as exc:
-        raise DeploymentError(f"客户包下载失败：{type(exc).__name__}") from exc
+        if is_windows_host():
+            try:
+                destination.unlink(missing_ok=True)
+                browser_download_file(source, destination)
+                return
+            except DeploymentError as browser_exc:
+                raise DeploymentError(
+                    "客户包自动下载失败；已尝试 Windows 系统浏览器，但当前网络或安全软件仍阻止访问。"
+                ) from browser_exc
+        raise DeploymentError("客户包下载失败，请检查网络后再试。") from exc
 
 
 def safe_extract(archive: Path, destination: Path) -> None:
