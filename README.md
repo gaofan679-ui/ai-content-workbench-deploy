@@ -7,7 +7,7 @@
 把下面这段话和服务方单独发给你的“部署票据链接”一起交给 Codex。客户不需要手动下载 JSON、压缩包或上传文件：
 
 ```text
-请按这个固定入口帮我安装或升级 AI 内容工作台：先自动进行只读检查，判断这是全新安装还是已有工作台升级，并用中文告诉我结果、缺少什么以及哪些内容不会动。检查完成后只向我确认一次；我同意后，自动补齐支持的基础环境，再选择匹配的客户包，自动读取票据、下载、校验、安装并生成验收回执。如果 Windows 直接联网失败，请先自动使用系统网络工具，再尝试 Edge 或 Chrome；不要让我手动处理 JSON、压缩包或上传文件。入口（主入口打不开时可读取同一版本的备用入口）：https://github.com/gaofan679-ui/ai-content-workbench-deploy/blob/main/CODEX_DEPLOYMENT.md；https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.6.0-rc.1/CODEX_DEPLOYMENT.md；部署票据：<服务方单独发送的限时链接>
+请按这个固定入口帮我安装或升级 AI 内容工作台：先自动进行只读检查，判断这是全新安装还是已有工作台升级，并用中文告诉我结果、缺少什么以及哪些内容不会动。检查完成后只向我确认一次；我同意后，自动补齐支持的基础环境，再选择匹配的客户包，自动读取票据、下载、校验、安装并生成验收回执。如果 Windows 直接联网失败，请先自动使用系统网络工具，再尝试 Edge 或 Chrome；不要让我手动处理 JSON、压缩包或上传文件。入口（主入口打不开时可读取同一版本的备用入口）：https://github.com/gaofan679-ui/ai-content-workbench-deploy/blob/main/CODEX_DEPLOYMENT.md；https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.6.0-rc.2/CODEX_DEPLOYMENT.md；部署票据：<服务方单独发送的限时链接>
 ```
 
 详细步骤见 [CODEX_DEPLOYMENT.md](CODEX_DEPLOYMENT.md)。
