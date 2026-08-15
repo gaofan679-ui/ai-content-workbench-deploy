@@ -160,6 +160,60 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(deploy.DeploymentError):
             deploy.validate_manifest(manifest, ticket)
 
+    def test_full_workbench_manifest_requires_dynamic_skill_count(self) -> None:
+        ticket = self.ticket()
+        manifest = {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "module_id": "workbench-cumulative-update",
+            "version": ticket["version"],
+            "release_tag": "test",
+            "release_id": "test",
+            "channel": "pilot",
+            "status": "single_machine_candidate_not_batch_release",
+            "platform": ticket["platform"],
+            "install_mode": ticket["install_mode"],
+            "package_file_name": "test.zip",
+            "package_root": "root",
+            "package_subdir": "system",
+            "package_size_bytes": ticket["package_size_bytes"],
+            "package_sha256": ticket["package_sha256"],
+            "package_contract": "full_workbench_v1",
+            "payload_version": "1.6.0",
+            "installed_skill_count": 37,
+        }
+        deploy.validate_manifest(manifest, ticket)
+        manifest["installed_skill_count"] = 0
+        with self.assertRaises(deploy.DeploymentError):
+            deploy.validate_manifest(manifest, ticket)
+
+    def test_full_workbench_payload_uses_package_manifest_not_module_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root / "sample.txt").write_text("ok", encoding="utf-8")
+            digest = deploy.sha256_file(root / "sample.txt")
+            (root / "package_manifest.json").write_text(
+                json.dumps(
+                    {
+                        "release_id": "release-test",
+                        "version": "1.6.0",
+                        "workflow_count": 37,
+                        "checksums": {"sample.txt": digest},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = deploy.verify_full_workbench_payload(
+                root,
+                {
+                    "release_id": "release-test",
+                    "payload_version": "1.6.0",
+                    "installed_skill_count": 37,
+                },
+            )
+            self.assertEqual(result["workflow_count"], 37)
+            self.assertFalse((root / "module_manifest.json").exists())
+
     def test_zip_traversal_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

@@ -4,7 +4,8 @@
 The public repository contains this installer and immutable manifests only.
 Package URLs live in short-lived customer tickets and are never printed with
 their query strings. Writes require --confirm-write YES and are delegated to
-the package's own deterministic upgrade tool.
+the package contract: legacy module packages use their deterministic upgrade
+tool, while full workbench packages use their platform installer and manifest.
 """
 
 from __future__ import annotations
@@ -477,6 +478,17 @@ def validate_manifest(manifest: dict[str, Any], ticket: dict[str, Any]) -> None:
         "stable",
     }:
         raise DeploymentError("版本状态不允许安装。")
+    package_contract = manifest.get("package_contract")
+    if package_contract not in {None, "module_upgrade_v1", "full_workbench_v1"}:
+        raise DeploymentError("版本清单声明了未知的客户包结构。")
+    if package_contract == "full_workbench_v1":
+        require_fields(
+            manifest,
+            ("payload_version", "installed_skill_count"),
+            "完整工作台版本清单",
+        )
+        if not isinstance(manifest["installed_skill_count"], int) or manifest["installed_skill_count"] <= 0:
+            raise DeploymentError("完整工作台版本清单的工作流数量无效。")
 
 
 def resolve_workbench(explicit: str | None, mode: str) -> Path:
@@ -1203,6 +1215,177 @@ def verify_first_install(source_skills: Path, skills_home: Path, workbench: Path
     return checked
 
 
+def verify_full_workbench_payload(package_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    manifest_path = package_dir / "package_manifest.json"
+    if not manifest_path.is_file():
+        raise DeploymentError("完整工作台包缺少包体清单。")
+    try:
+        payload_manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DeploymentError("完整工作台包体清单无法读取。") from exc
+    if payload_manifest.get("release_id") != manifest.get("release_id"):
+        raise DeploymentError("完整工作台包体清单与发布基线不一致。")
+    if payload_manifest.get("version") != manifest.get("payload_version"):
+        raise DeploymentError("完整工作台包体版本与不可变清单不一致。")
+    if payload_manifest.get("workflow_count") != manifest.get("installed_skill_count"):
+        raise DeploymentError("完整工作台包体工作流数量与不可变清单不一致。")
+    checksums = payload_manifest.get("checksums")
+    if not isinstance(checksums, dict) or not checksums:
+        raise DeploymentError("完整工作台包体清单没有文件校验记录。")
+    package_root = package_dir.resolve()
+    for relative, wanted in checksums.items():
+        relative_path = Path(str(relative))
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise DeploymentError("完整工作台包体清单包含越界路径。")
+        target = (package_dir / relative_path).resolve()
+        if package_root not in target.parents:
+            raise DeploymentError("完整工作台包体清单指向包外文件。")
+        if not target.is_file() or sha256_file(target) != str(wanted):
+            raise DeploymentError("完整工作台包体文件校验没有通过。")
+    return payload_manifest
+
+
+def verify_full_workbench_install(
+    source_skills: Path,
+    skills_home: Path,
+    workbench: Path,
+    expected_skill_count: int,
+) -> int:
+    source_dirs = sorted(path for path in source_skills.iterdir() if path.is_dir())
+    if len(source_dirs) != expected_skill_count:
+        raise DeploymentError("完整工作台包内工作流数量与不可变清单不一致。")
+    checked = 0
+    for source_dir in source_dirs:
+        target_dir = skills_home / source_dir.name
+        if not (target_dir / "SKILL.md").is_file():
+            raise DeploymentError(f"安装后缺少工作流：{source_dir.name}")
+        for source_file in sorted(path for path in source_dir.rglob("*") if path.is_file()):
+            relative = source_file.relative_to(source_dir)
+            target_file = target_dir / relative
+            if not target_file.is_file() or sha256_file(source_file) != sha256_file(target_file):
+                raise DeploymentError(f"安装后工作流文件不一致：{source_dir.name}/{relative}")
+            checked += 1
+    required = (
+        workbench / "AGENTS.md",
+        workbench / "00_使用入口.html",
+        workbench / "系统文件_无需打开" / "config" / "customer_config.env",
+        workbench / "系统文件_无需打开" / "tools" / "web-workbench" / "browser-companion" / "chatgpt-web" / "manifest.json",
+    )
+    if any(not path.is_file() for path in required):
+        raise DeploymentError("安装后缺少工作台核心文件。")
+    return checked
+
+
+def native_backups(workbench: Path) -> set[Path]:
+    roots = (
+        workbench / "系统文件_无需打开" / "backups",
+        workbench / "06_Backups",
+    )
+    return {
+        path
+        for root in roots if root.is_dir()
+        for path in root.glob("before_install_*") if path.is_dir()
+    }
+
+
+def run_full_workbench_install(
+    package_dir: Path,
+    workbench: Path,
+    skills_home: Path,
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    ticket_source: str,
+    environment: dict[str, Any],
+) -> Path:
+    install_mode = str(manifest["install_mode"])
+    if install_mode == "first_install":
+        if workbench.exists() and any(workbench.iterdir()):
+            raise DeploymentError("首次安装目标不是空目录，尚未写入。")
+        if _managed_skill_count(skills_home):
+            raise DeploymentError("首次安装目标已经存在工作台能力，尚未写入。")
+    elif _workbench_state(workbench) != "managed" or not _managed_skill_count(skills_home):
+        raise DeploymentError("累计升级目标不是完整的已安装工作台，尚未写入。")
+
+    verify_full_workbench_payload(package_dir, manifest)
+    backups_before = native_backups(workbench)
+    if manifest["platform"] == "macos":
+        installer = package_dir / "mac" / "tools" / "install_ai_content_workbench.sh"
+        if not installer.is_file():
+            raise DeploymentError("Mac 完整工作台包缺少正式安装器。")
+        result = subprocess.run(
+            ["bash", str(installer)],
+            input=f"{workbench}\n{skills_home}\nYES\n",
+            text=True,
+            capture_output=True,
+        )
+    else:
+        installer = package_dir / "installer" / "Install_AI_Content_Workbench.ps1"
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if not installer.is_file() or not powershell:
+            raise DeploymentError("Windows 完整工作台包缺少正式安装器或 PowerShell。")
+        result = subprocess.run(
+            [
+                powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(installer),
+                "-WorkspaceRoot", str(workbench), "-CodexSkillsHome", str(skills_home),
+            ],
+            text=True,
+            capture_output=True,
+        )
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "正式安装器没有返回说明").strip()
+        raise DeploymentError(f"正式安装器阻塞：{message[-1200:]}")
+
+    checked = verify_full_workbench_install(
+        package_dir / "codex_skills",
+        skills_home,
+        workbench,
+        int(manifest["installed_skill_count"]),
+    )
+    new_backups = native_backups(workbench) - backups_before
+    backup_root = next(iter(new_backups)) if len(new_backups) == 1 else None
+    if install_mode == "incremental_upgrade" and backup_root is None:
+        raise DeploymentError("安装完成但没有找到本次唯一升级备份。")
+    receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
+    receipt_path = receipt_dir / f"{safe_id}.json"
+    receipt = {
+        "schema_version": 1,
+        "status": "installed_and_verified",
+        "installed_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "ticket_id": ticket["ticket_id"],
+        "customer_id": ticket["customer_id"],
+        "ticket_source": redacted_location(ticket_source),
+        "product_id": PRODUCT_ID,
+        "version": manifest["version"],
+        "release_tag": manifest["release_tag"],
+        "release_id": manifest["release_id"],
+        "platform": manifest["platform"],
+        "install_mode": install_mode,
+        "package_contract": "full_workbench_v1",
+        "package_sha256": manifest["package_sha256"],
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "backup_record": str(backup_root) if backup_root else "not_applicable_fresh_environment",
+        "post_install_tree_verification": "passed",
+        "post_install_identity_files_checked": checked,
+        "environment_preflight": environment,
+        "customer_summary": customer_summary(
+            manifest,
+            {"install_mode": install_mode},
+            environment,
+            phase="apply",
+        ),
+        "paid_calls": 0,
+        "external_uploads": 0,
+        "rollback": "requires_separate_explicit_confirmation",
+    }
+    temporary = receipt_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, receipt_path)
+    return receipt_path
+
+
 def run_first_install(
     package_root: Path,
     package_dir: Path,
@@ -1351,7 +1534,12 @@ def apply(args: argparse.Namespace) -> int:
         safe_extract(archive, extracted)
         package_root = extracted / str(manifest["package_root"])
         package_dir = package_root / str(manifest["package_subdir"])
-        if manifest["install_mode"] == "incremental_upgrade":
+        if manifest.get("package_contract") == "full_workbench_v1":
+            receipt = run_full_workbench_install(
+                package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment
+            )
+            backup_record = None
+        elif manifest["install_mode"] == "incremental_upgrade":
             upgrade_script = package_dir / "scripts" / "module_upgrade.py"
             module_manifest = package_dir / "module_manifest.json"
             if not upgrade_script.is_file() or not module_manifest.is_file():
