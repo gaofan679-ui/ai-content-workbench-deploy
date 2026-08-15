@@ -2,23 +2,23 @@
   "schema_version": 1,
   "product_id": "ai-content-workbench",
   "channel": "pilot",
-  "updated_at": "2026-08-15T02:51:38+08:00",
-  "version": "1.6.0-rc.2",
-  "release_tag": "workbench-v1.6.0-rc.2",
-  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.6.0-rc.2/CODEX_DEPLOYMENT.md",
+  "updated_at": "2026-08-15T17:36:35+08:00",
+  "version": "1.6.0-rc.3",
+  "release_tag": "workbench-v1.6.0-rc.3",
+  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.6.0-rc.3/CODEX_DEPLOYMENT.md",
   "manifests": {
     "macos": {
-      "first_install": "releases/v1.6.0-rc.2/macos-first-install.json",
-      "incremental_upgrade": "releases/v1.6.0-rc.2/macos-upgrade.json"
+      "first_install": "releases/v1.6.0-rc.3/macos-first-install.json",
+      "incremental_upgrade": "releases/v1.6.0-rc.3/macos-upgrade.json"
     },
     "windows": {
-      "first_install": "releases/v1.6.0-rc.2/windows-first-install.json",
-      "incremental_upgrade": "releases/v1.6.0-rc.2/windows-upgrade.json"
+      "first_install": "releases/v1.6.0-rc.3/windows-first-install.json",
+      "incremental_upgrade": "releases/v1.6.0-rc.3/windows-upgrade.json"
     }
   },
   "batch_release_allowed": false,
   "real_machine_validation": {
-    "macos": "isolated_install_and_upgrade_pass",
+    "macos": "adaptive_ticket_first_install_and_upgrade_e2e_pass",
     "windows": "real_machine_pending"
   }
 }
