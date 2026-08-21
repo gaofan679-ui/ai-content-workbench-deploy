@@ -50,6 +50,16 @@ MANAGED_SKILL_IDS = {
     "talking-head-video-workflow", "topic-selection-workflow",
     "xhs-cover-style-replication", "xhs-live-photo", "xhs-viral-clone",
 }
+ZH_LAYOUT_MARKERS = ("系统文件_无需打开", "01_素材入口", "02_项目工作区", "03_最终成果")
+LEGACY_LAYOUT_MARKERS = (
+    "00_DO_NOT_DELETE_Core_Config", "01_Inbox", "02_Projects", "03_Outputs",
+    "07_Tools", "08_Projects_Tasks", "10_Output",
+)
+ACTIVE_MANIFEST_CANDIDATES = (
+    Path("系统文件_无需打开/config/workbench_manifest.json"),
+    Path("00_DO_NOT_DELETE_Core_Config/workbench_manifest.json"),
+)
+REQUIRED_EXISTING_ACTIVE_DIRECTORIES = ("core_config", "projects", "outputs")
 
 
 class DeploymentError(RuntimeError):
@@ -533,21 +543,108 @@ def resolve_skills_home(explicit: str | None) -> Path:
     return existing[0]
 
 
-def _workbench_state(path: Path) -> str:
+def _inside(root: Path, candidate: Path) -> bool:
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def inspect_workbench_layout(path: Path) -> dict[str, Any]:
+    """Classify historical layouts without renaming, merging or deleting data."""
     if not path.exists():
-        return "absent"
+        return {"state": "absent", "layout_id": None, "recovery": "not_needed"}
     if not path.is_dir():
-        return "conflict"
+        return {"state": "conflict", "layout_id": None, "recovery": "manual_plan_required"}
     try:
         if not any(path.iterdir()):
-            return "empty"
+            return {"state": "empty", "layout_id": None, "recovery": "not_needed"}
     except OSError:
-        return "conflict"
-    markers = (
-        "系统文件_无需打开", "01_素材入口", "02_项目工作区", "03_最终成果",
-        "00_DO_NOT_DELETE_Core_Config", "01_Inbox", "02_Projects", "03_Outputs",
-    )
-    return "managed" if any((path / marker).exists() for marker in markers) else "conflict"
+        return {"state": "conflict", "layout_id": None, "recovery": "manual_plan_required"}
+
+    root = path.resolve()
+    zh_count = sum(1 for marker in ZH_LAYOUT_MARKERS if (root / marker).exists())
+    legacy_count = sum(1 for marker in LEGACY_LAYOUT_MARKERS if (root / marker).exists())
+    active: list[tuple[Path, dict[str, Any]]] = []
+    manifest_error: str | None = None
+    for relative in ACTIVE_MANIFEST_CANDIDATES:
+        manifest_path = root / relative
+        if not manifest_path.is_file():
+            continue
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            manifest_error = "active_manifest_unreadable"
+            continue
+        if (
+            int(payload.get("layout_version", 0)) >= 2
+            and payload.get("directory_contract_status") == "active"
+        ):
+            active.append((manifest_path, payload))
+
+    if len(active) > 1:
+        return {
+            "state": "conflict", "layout_id": None, "recovery": "manual_plan_required",
+            "reason": "multiple_active_workbench_manifests", "zh_marker_count": zh_count,
+            "legacy_marker_count": legacy_count,
+        }
+    if len(active) == 1:
+        manifest_path, payload = active[0]
+        layout_id = str(payload.get("layout_id") or "manifest_v2")
+        directories = payload.get("directories")
+        if layout_id != "zh_visible_v2" or not isinstance(directories, dict):
+            manifest_error = "unsupported_active_layout"
+        else:
+            for key, value in directories.items():
+                if not isinstance(value, str) or not value:
+                    manifest_error = f"active_directory_missing:{key}"
+                    break
+                relative = Path(value)
+                resolved = (root / relative).resolve()
+                if relative.is_absolute() or ".." in relative.parts or not _inside(root, resolved):
+                    manifest_error = f"active_directory_unsafe:{key}"
+                    break
+                if key in REQUIRED_EXISTING_ACTIVE_DIRECTORIES and not resolved.is_dir():
+                    manifest_error = f"active_directory_not_found:{key}"
+                    break
+            for key in REQUIRED_EXISTING_ACTIVE_DIRECTORIES:
+                if key not in directories:
+                    manifest_error = f"active_directory_missing:{key}"
+                    break
+        if manifest_error is None:
+            return {
+                "state": "managed", "layout_id": "zh_visible_v2",
+                "recovery": "legacy_preserved_use_active_manifest" if legacy_count else "not_needed",
+                "manifest_path": str(manifest_path), "zh_marker_count": zh_count,
+                "legacy_marker_count": legacy_count,
+            }
+
+    if zh_count and legacy_count:
+        return {
+            "state": "conflict", "layout_id": None, "recovery": "manual_plan_required",
+            "reason": manifest_error or "mixed_layout_without_unique_active_manifest",
+            "zh_marker_count": zh_count, "legacy_marker_count": legacy_count,
+        }
+    if legacy_count:
+        return {
+            "state": "managed", "layout_id": "legacy_v1", "recovery": "not_needed",
+            "zh_marker_count": zh_count, "legacy_marker_count": legacy_count,
+        }
+    if zh_count:
+        return {
+            "state": "managed", "layout_id": "zh_visible_v2", "recovery": "not_needed",
+            "zh_marker_count": zh_count, "legacy_marker_count": legacy_count,
+        }
+    return {
+        "state": "conflict", "layout_id": None, "recovery": "manual_plan_required",
+        "reason": manifest_error or "unrecognized_workbench_layout",
+        "zh_marker_count": zh_count, "legacy_marker_count": legacy_count,
+    }
+
+
+def _workbench_state(path: Path) -> str:
+    return str(inspect_workbench_layout(path)["state"])
 
 
 def _managed_skill_count(path: Path) -> int:
@@ -566,10 +663,16 @@ def detect_install_context(workbench_arg: str | None, skills_arg: str | None) ->
         if os.name == "nt":
             workbench_candidates.append(Path("C:/AIContentWorkbench"))
         workbench_candidates.append((Path.home() / "AIContentWorkbench").resolve())
-    states = [(path, _workbench_state(path)) for path in workbench_candidates]
+    layout_reports = [(path, inspect_workbench_layout(path)) for path in workbench_candidates]
+    states = [(path, str(report["state"])) for path, report in layout_reports]
     meaningful = [(path, state) for path, state in states if state in {"managed", "conflict"}]
     if len(meaningful) > 1 or any(state == "conflict" for _, state in states):
-        raise DeploymentError("工作台目录存在冲突或无法唯一判断；当前只读检查已停止。")
+        conflict = next((report for _, report in layout_reports if report["state"] == "conflict"), {})
+        reason = conflict.get("reason", "workbench_directory_conflict")
+        raise DeploymentError(
+            "工作台存在无法自动判断的新旧目录；已在下载客户包前停止。"
+            f"内部原因：{reason}。请先生成只读恢复计划，不会自动改名、合并、移动或删除文件。"
+        )
     workbench = meaningful[0][0] if meaningful else workbench_candidates[0]
 
     if skills_arg:
@@ -599,6 +702,10 @@ def detect_install_context(workbench_arg: str | None, skills_arg: str | None) ->
         "workbench": str(workbench),
         "skills_home": str(skills_home),
         "workbench_states": {str(path): state for path, state in states},
+        "layout_contract": next(
+            (report for path, report in layout_reports if path == workbench),
+            {"state": "absent", "layout_id": None, "recovery": "not_needed"},
+        ),
         "managed_skill_roots": {str(path): count for path, count in skill_states if count > 0},
         "write_performed": False,
     }
@@ -1296,6 +1403,7 @@ def run_full_workbench_install(
     manifest: dict[str, Any],
     ticket_source: str,
     environment: dict[str, Any],
+    detection: dict[str, Any],
 ) -> Path:
     install_mode = str(manifest["install_mode"])
     if install_mode == "first_install":
@@ -1308,15 +1416,21 @@ def run_full_workbench_install(
 
     verify_full_workbench_payload(package_dir, manifest)
     backups_before = native_backups(workbench)
+    layout_contract = detection.get("layout_contract") or inspect_workbench_layout(workbench)
+    validated_layout = str(layout_contract.get("layout_id") or "")
     if manifest["platform"] == "macos":
         installer = package_dir / "mac" / "tools" / "install_ai_content_workbench.sh"
         if not installer.is_file():
             raise DeploymentError("Mac 完整工作台包缺少正式安装器。")
+        installer_environment = os.environ.copy()
+        if validated_layout:
+            installer_environment["AICW_VALIDATED_LAYOUT"] = validated_layout
         result = subprocess.run(
             ["bash", str(installer)],
             input=f"{workbench}\n{skills_home}\nYES\n",
             text=True,
             capture_output=True,
+            env=installer_environment,
         )
     else:
         installer = package_dir / "installer" / "Install_AI_Content_Workbench.ps1"
@@ -1327,6 +1441,7 @@ def run_full_workbench_install(
             [
                 powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(installer),
                 "-WorkspaceRoot", str(workbench), "-CodexSkillsHome", str(skills_home),
+                "-ValidatedLayout", validated_layout,
             ],
             text=True,
             capture_output=True,
@@ -1366,6 +1481,7 @@ def run_full_workbench_install(
         "package_sha256": manifest["package_sha256"],
         "workbench": str(workbench),
         "skills_home": str(skills_home),
+        "layout_contract": layout_contract,
         "backup_record": str(backup_root) if backup_root else "not_applicable_fresh_environment",
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
@@ -1536,7 +1652,7 @@ def apply(args: argparse.Namespace) -> int:
         package_dir = package_root / str(manifest["package_subdir"])
         if manifest.get("package_contract") == "full_workbench_v1":
             receipt = run_full_workbench_install(
-                package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment
+                package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment, detection
             )
             backup_record = None
         elif manifest["install_mode"] == "incremental_upgrade":

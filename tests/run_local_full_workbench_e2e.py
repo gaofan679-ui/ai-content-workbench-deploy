@@ -14,6 +14,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 
 
@@ -54,7 +55,10 @@ def main() -> int:
     upgrade_package = Path(args.upgrade_package).resolve()
     now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
-    with tempfile.TemporaryDirectory(prefix="aicw-rc3-e2e-") as name:
+    upgrade_release = json.loads(upgrade_manifest.read_text(encoding="utf-8"))
+    candidate_version = str(upgrade_release["version"])
+
+    with tempfile.TemporaryDirectory(prefix="aicw-layout-recovery-e2e-") as name:
         test_root = Path(name)
         workbench = test_root / "AIContentWorkbench"
         skills_home = test_root / ".codex" / "skills"
@@ -64,12 +68,12 @@ def main() -> int:
             json.dumps(
                 {
                     "schema_version": 2,
-                    "ticket_id": "rc3-local-e2e",
+                    "ticket_id": "layout-recovery-local-e2e",
                     "customer_id": "isolated-test-machine",
                     "issued_at": now.isoformat(),
                     "expires_at": (now + dt.timedelta(hours=2)).isoformat(),
                     "product_id": "ai-content-workbench",
-                    "version": "1.6.0-rc.3",
+                    "version": candidate_version,
                     "artifacts": [
                         artifact(first_manifest, first_package),
                         artifact(upgrade_manifest, upgrade_package),
@@ -97,10 +101,19 @@ def main() -> int:
         config = workbench / "系统文件_无需打开" / "config" / "customer_config.env"
         project_marker.write_text("project-preserved\n", encoding="utf-8")
         output_marker.write_text("output-preserved\n", encoding="utf-8")
+        for relative in ("01_素材入口", "04_使用教程", "系统文件_无需打开/tools"):
+            shutil.rmtree(workbench / relative)
+        legacy_markers = []
+        for relative in ("01_Inbox", "02_Projects", "03_Outputs", "07_Tools", "09_Docs"):
+            marker = workbench / relative / "historical-customer-data.txt"
+            marker.parent.mkdir(parents=True)
+            marker.write_text(f"protected:{relative}\n", encoding="utf-8")
+            legacy_markers.append(marker)
         before = {
             "project": sha256(project_marker),
             "output": sha256(output_marker),
             "config": sha256(config),
+            **{f"legacy_{index}": sha256(path) for index, path in enumerate(legacy_markers)},
         }
 
         upgrade_result = deploy.apply(command)
@@ -110,11 +123,15 @@ def main() -> int:
             "project": sha256(project_marker),
             "output": sha256(output_marker),
             "config": sha256(config),
+            **{f"legacy_{index}": sha256(path) for index, path in enumerate(legacy_markers)},
         }
         if before != after:
             raise RuntimeError("protected project, output or config changed during upgrade")
+        for relative in ("01_素材入口", "04_使用教程", "系统文件_无需打开/tools"):
+            if not (workbench / relative).is_dir():
+                raise RuntimeError(f"managed directory was not safely recreated: {relative}")
         receipt = json.loads(
-            (workbench / "系统文件_无需打开" / "deployment_receipts" / "rc3-local-e2e.json").read_text(encoding="utf-8")
+            (workbench / "系统文件_无需打开" / "deployment_receipts" / "layout-recovery-local-e2e.json").read_text(encoding="utf-8")
         )
         if receipt.get("status") != "installed_and_verified":
             raise RuntimeError("final receipt did not pass")
@@ -122,6 +139,8 @@ def main() -> int:
             raise RuntimeError("adaptive ticket did not switch to upgrade")
         if receipt.get("package_contract") != "full_workbench_v1":
             raise RuntimeError("full workbench contract was not used")
+        if receipt.get("layout_contract", {}).get("recovery") != "legacy_preserved_use_active_manifest":
+            raise RuntimeError("historical mixed layout was not resolved by the active manifest")
         if not Path(str(receipt.get("backup_record"))).is_dir():
             raise RuntimeError("upgrade backup was not recorded")
         print(
@@ -130,6 +149,9 @@ def main() -> int:
                     "status": "PASS",
                     "adaptive_first_install": True,
                     "adaptive_upgrade": True,
+                    "historical_mixed_layout_replayed": True,
+                    "legacy_directories_preserved": True,
+                    "missing_managed_directories_recreated": True,
                     "installed_skill_count": 37,
                     "project_output_config_preserved": True,
                     "backup_recorded": True,

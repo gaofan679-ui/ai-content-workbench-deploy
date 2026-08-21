@@ -326,6 +326,119 @@ class DeploymentTests(unittest.TestCase):
             result = deploy.detect_install_context(str(workbench), str(skills))
             self.assertEqual(result["install_mode"], "incremental_upgrade")
 
+    def _write_active_zh_layout(self, workbench: Path) -> None:
+        directories = {
+            "core_config": "系统文件_无需打开/config",
+            "inbox": "01_素材入口",
+            "projects": "02_项目工作区",
+            "outputs": "03_最终成果",
+            "tools": "系统文件_无需打开/tools",
+            "docs": "04_使用教程",
+        }
+        for relative in directories.values():
+            (workbench / relative).mkdir(parents=True, exist_ok=True)
+        manifest = workbench / "系统文件_无需打开" / "config" / "workbench_manifest.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "layout_version": 2,
+                    "layout_id": "zh_visible_v2",
+                    "directory_contract_status": "active",
+                    "directories": directories,
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    def test_historical_mixed_layout_uses_unique_active_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            skills = root / ".codex" / "skills"
+            self._write_active_zh_layout(workbench)
+            for relative in ("01_Inbox", "02_Projects", "03_Outputs", "07_Tools"):
+                (workbench / relative).mkdir(parents=True)
+                (workbench / relative / "protected.txt").write_text("legacy", encoding="utf-8")
+            managed = skills / "customer-workbench-deployer"
+            managed.mkdir(parents=True)
+            (managed / "SKILL.md").write_text("managed", encoding="utf-8")
+
+            result = deploy.detect_install_context(str(workbench), str(skills))
+
+            self.assertEqual(result["install_mode"], "incremental_upgrade")
+            self.assertEqual(result["layout_contract"]["layout_id"], "zh_visible_v2")
+            self.assertEqual(
+                result["layout_contract"]["recovery"],
+                "legacy_preserved_use_active_manifest",
+            )
+
+    def test_partial_historical_layout_allows_managed_directories_to_be_recreated(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            directories = {
+                "core_config": "系统文件_无需打开/config",
+                "inbox": "01_素材入口",
+                "projects": "02_项目工作区",
+                "outputs": "03_最终成果",
+                "tools": "系统文件_无需打开/tools",
+                "docs": "04_使用教程",
+            }
+            for key in ("core_config", "projects", "outputs"):
+                (workbench / directories[key]).mkdir(parents=True)
+            manifest = workbench / directories["core_config"] / "workbench_manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "layout_version": 2,
+                        "layout_id": "zh_visible_v2",
+                        "directory_contract_status": "active",
+                        "directories": directories,
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            for relative in ("01_Inbox", "07_Tools", "09_Docs"):
+                (workbench / relative).mkdir(parents=True)
+
+            report = deploy.inspect_workbench_layout(workbench)
+
+            self.assertEqual(report["state"], "managed")
+            self.assertEqual(report["layout_id"], "zh_visible_v2")
+            self.assertEqual(report["recovery"], "legacy_preserved_use_active_manifest")
+
+    def test_ambiguous_mixed_layout_stops_before_install_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            skills = root / ".codex" / "skills" / "customer-workbench-deployer"
+            (workbench / "01_Inbox").mkdir(parents=True)
+            (workbench / "01_素材入口").mkdir(parents=True)
+            skills.mkdir(parents=True)
+            (skills / "SKILL.md").write_text("managed", encoding="utf-8")
+
+            with self.assertRaisesRegex(deploy.DeploymentError, "下载客户包前停止"):
+                deploy.detect_install_context(str(workbench), str(skills.parent))
+
+    def test_mixed_layout_with_unsafe_manifest_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            self._write_active_zh_layout(workbench)
+            (workbench / "01_Inbox").mkdir(parents=True)
+            manifest = workbench / "系统文件_无需打开" / "config" / "workbench_manifest.json"
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["directories"]["projects"] = "../outside"
+            manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+            report = deploy.inspect_workbench_layout(workbench)
+
+            self.assertEqual(report["state"], "conflict")
+            self.assertEqual(report["recovery"], "manual_plan_required")
+            self.assertIn("unsafe", report["reason"])
+
     def test_partial_environment_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
