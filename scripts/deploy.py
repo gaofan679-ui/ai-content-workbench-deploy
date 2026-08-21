@@ -37,7 +37,8 @@ BROWSER_FALLBACK_TIMEOUT_SECONDS = 90
 MINIMUM_TICKET_REMAINING_SECONDS = 20 * 60
 MANAGED_SKILL_IDS = {
     "ai-commercial-video-remix", "ai-model-asset-codex", "ai-network-doctor",
-    "ai-video-decompose-gemini", "ai-video-editing-post", "ai-video-experience-deposit",
+    "ai-video-decompose-gemini", "ai-video-editing-decompose", "ai-video-editing-post",
+    "ai-video-experience-deposit",
     "ai-video-generation-api", "ai-video-generation-pack", "ai-video-generation-qc",
     "ai-video-generation-runner", "ai-video-image-assets", "ai-video-motion-preflight",
     "ai-video-motion-transfer", "ai-video-person-assets", "ai-video-product-assets",
@@ -48,7 +49,8 @@ MANAGED_SKILL_IDS = {
     "commerce-ai-workbench", "content-positioning-interview", "copywriting-workflow",
     "customer-workbench-deployer", "libtv-cli", "social-copy-extract",
     "talking-head-video-workflow", "topic-selection-workflow",
-    "xhs-cover-style-replication", "xhs-live-photo", "xhs-viral-clone",
+    "viral-content-deconstruction", "xhs-cover-style-replication", "xhs-live-photo",
+    "xhs-viral-clone",
 }
 ZH_LAYOUT_MARKERS = ("系统文件_无需打开", "01_素材入口", "02_项目工作区", "03_最终成果")
 LEGACY_LAYOUT_MARKERS = (
@@ -653,6 +655,98 @@ def _managed_skill_count(path: Path) -> int:
     return sum(1 for skill_id in MANAGED_SKILL_IDS if (path / skill_id / "SKILL.md").is_file())
 
 
+def _managed_skill_ids(path: Path) -> list[str]:
+    if not path.is_dir():
+        return []
+    return sorted(
+        skill_id for skill_id in MANAGED_SKILL_IDS
+        if (path / skill_id / "SKILL.md").is_file()
+    )
+
+
+def _default_skill_roots() -> list[Path]:
+    return [
+        (Path.home() / ".codex" / "skills").resolve(),
+        (Path.home() / ".agents" / "skills").resolve(),
+    ]
+
+
+def _skill_root_candidates(explicit: str | None) -> tuple[list[Path], Path | None]:
+    defaults = _default_skill_roots()
+    preferred: Path | None = None
+    if explicit:
+        preferred = Path(explicit).expanduser().resolve()
+    elif os.environ.get("CODEX_SKILLS_HOME"):
+        preferred = Path(os.environ["CODEX_SKILLS_HOME"]).expanduser().resolve()
+    candidates = [preferred] if preferred is not None else []
+    # A standard root may coexist with the other standard Codex root.  Inspect
+    # both so a stale duplicate cannot silently keep winning after an upgrade.
+    if preferred is None or preferred in defaults:
+        candidates.extend(defaults)
+    result: list[Path] = []
+    for path in candidates:
+        if path not in result:
+            result.append(path)
+    return result, preferred
+
+
+def _receipt_skill_roots(workbench: Path) -> list[Path]:
+    receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
+    if not receipt_dir.is_dir():
+        return []
+    roots: list[Path] = []
+    for receipt_path in sorted(receipt_dir.glob("*.json"), reverse=True):
+        try:
+            payload = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+            value = payload.get("skills_home")
+            if not isinstance(value, str) or not value:
+                continue
+            root = Path(value).expanduser().resolve()
+        except (OSError, json.JSONDecodeError):
+            continue
+        if root not in roots:
+            roots.append(root)
+    return roots
+
+
+def _select_skill_root_plan(
+    workbench: Path, candidates: list[Path], preferred: Path | None
+) -> dict[str, Any]:
+    reports = {path: _managed_skill_ids(path) for path in candidates}
+    managed = [path for path, ids in reports.items() if ids]
+    primary: Path
+    selection: str
+    if preferred is not None and preferred in managed:
+        primary = preferred
+        selection = "explicit_or_environment_managed_root"
+    else:
+        receipt_matches = [path for path in _receipt_skill_roots(workbench) if path in managed]
+        if len(receipt_matches) == 1:
+            primary = receipt_matches[0]
+            selection = "deployment_receipt_managed_root"
+        elif managed:
+            highest = max(len(reports[path]) for path in managed)
+            leaders = [path for path in managed if len(reports[path]) == highest]
+            default_order = _default_skill_roots()
+            primary = next((path for path in default_order if path in leaders), leaders[0])
+            selection = "most_complete_managed_root"
+        else:
+            primary = preferred or candidates[0]
+            selection = "new_default_root"
+    mirrors = [path for path in managed if path != primary]
+    recovery = "not_needed"
+    if mirrors:
+        recovery = "backup_and_sync_existing_managed_duplicates"
+    return {
+        "primary": primary,
+        "mirrors": mirrors,
+        "selection": selection,
+        "recovery": recovery,
+        "managed_skill_roots": {str(path): len(ids) for path, ids in reports.items() if ids},
+        "managed_skill_ids": {str(path): ids for path, ids in reports.items() if ids},
+    }
+
+
 def detect_install_context(workbench_arg: str | None, skills_arg: str | None) -> dict[str, Any]:
     if workbench_arg:
         workbench_candidates = [Path(workbench_arg).expanduser().resolve()]
@@ -675,38 +769,30 @@ def detect_install_context(workbench_arg: str | None, skills_arg: str | None) ->
         )
     workbench = meaningful[0][0] if meaningful else workbench_candidates[0]
 
-    if skills_arg:
-        skills_candidates = [Path(skills_arg).expanduser().resolve()]
-    elif os.environ.get("CODEX_SKILLS_HOME"):
-        skills_candidates = [Path(os.environ["CODEX_SKILLS_HOME"]).expanduser().resolve()]
-    else:
-        skills_candidates = [
-            (Path.home() / ".codex" / "skills").resolve(),
-            (Path.home() / ".agents" / "skills").resolve(),
-        ]
-    skill_states = [(path, _managed_skill_count(path)) for path in skills_candidates]
-    managed_roots = [(path, count) for path, count in skill_states if count > 0]
-    if len(managed_roots) > 1:
-        raise DeploymentError("发现两处工作台能力目录，无法安全选择；当前只读检查已停止。")
-    skills_home = managed_roots[0][0] if managed_roots else skills_candidates[0]
+    skills_candidates, preferred_skills = _skill_root_candidates(skills_arg)
+    skill_plan = _select_skill_root_plan(workbench, skills_candidates, preferred_skills)
+    skills_home = Path(skill_plan["primary"])
     wb_managed = any(state == "managed" for _, state in states)
-    skills_managed = bool(managed_roots)
-    if wb_managed and skills_managed:
-        mode = "incremental_upgrade"
-    elif not wb_managed and not skills_managed:
-        mode = "first_install"
-    else:
-        raise DeploymentError("工作台和工作流只发现了一部分，属于混合残留状态；不会自动安装或升级。")
+    managed_root_count = len(skill_plan["managed_skill_roots"])
+    mode = "incremental_upgrade" if wb_managed else "first_install"
+    skills_recovery = str(skill_plan["recovery"])
+    if wb_managed and managed_root_count == 0:
+        skills_recovery = "recreate_missing_managed_skills"
+    elif not wb_managed and managed_root_count > 0:
+        skills_recovery = "backup_existing_managed_residue_and_complete_first_install"
     return {
         "install_mode": mode,
         "workbench": str(workbench),
         "skills_home": str(skills_home),
+        "skills_mirrors": [str(path) for path in skill_plan["mirrors"]],
+        "skills_selection": skill_plan["selection"],
+        "skills_recovery": skills_recovery,
         "workbench_states": {str(path): state for path, state in states},
         "layout_contract": next(
             (report for path, report in layout_reports if path == workbench),
             {"state": "absent", "layout_id": None, "recovery": "not_needed"},
         ),
-        "managed_skill_roots": {str(path): count for path, count in skill_states if count > 0},
+        "managed_skill_roots": skill_plan["managed_skill_roots"],
         "write_performed": False,
     }
 
@@ -1098,6 +1184,15 @@ def customer_summary(
         str(manifest.get("platform")), str(manifest.get("platform"))
     )
     mode_label = "首次安装" if detection.get("install_mode") == "first_install" else "已有工作台升级"
+    skills_recovery = str(detection.get("skills_recovery") or "not_needed")
+    if skills_recovery == "backup_and_sync_existing_managed_duplicates":
+        skill_action = "先分别备份，再同步两处工作流目录中的同名工作台能力"
+    elif skills_recovery == "recreate_missing_managed_skills":
+        skill_action = "自动补回缺失的工作台能力"
+    elif skills_recovery == "backup_existing_managed_residue_and_complete_first_install":
+        skill_action = "先备份已有同名能力，再补齐完整工作台"
+    else:
+        skill_action = "保留已有内容，不整理旧目录"
     if phase == "inspect":
         bootstrap = environment.get("bootstrap") or {}
         if environment.get("status") == "ready":
@@ -1124,8 +1219,8 @@ def customer_summary(
         }
         return {
             "当前结论": conclusion,
-            "这次将处理": [f"按当前电脑识别为{mode_label}", f"准备安装或更新 {manifest.get('version')} 版本", "保留已有内容，不整理旧目录"],
-            "原有内容": "项目、素材、成果和个人配置不会在检查阶段被修改。",
+            "这次将处理": [f"按当前电脑识别为{mode_label}", f"准备安装或更新 {manifest.get('version')} 版本", skill_action],
+            "原有内容": "项目、素材、成果、个人配置和其他个人工作流不会在检查阶段被修改。",
             "还需要你做什么": next_steps,
             "缺少的基础工具": [missing_labels.get(str(item), "必要基础工具") for item in missing],
             "从哪里继续": f"这是 {platform_label} 电脑；检查通过后回到部署入口，完成确认即可。",
@@ -1134,10 +1229,17 @@ def customer_summary(
     next_steps = ["重新打开工作台应用，让本次更新完整生效", "打开“AI 内容工作台｜从这里开始”查看中文入口", "按需要配置自己的账号或授权"]
     if optional:
         next_steps[2] = "首次使用精确字幕等本地能力时，按提示准备约 1.2 GB 的本地模型"
+    completed = [f"已完成 {manifest.get('version')} 版本更新", "已完成安装后文件核对", "已补充中文使用入口和新旧目录说明", "没有自动上传素材或产生模型费用"]
+    if skills_recovery == "backup_and_sync_existing_managed_duplicates":
+        completed[2] = "两处工作流目录中的同名工作台能力已备份并同步"
+    elif skills_recovery == "recreate_missing_managed_skills":
+        completed[2] = "缺失的工作台能力已自动补齐"
+    elif skills_recovery == "backup_existing_managed_residue_and_complete_first_install":
+        completed[2] = "已有同名能力已备份，完整工作台已补齐"
     return {
         "当前结论": "本次安装或升级已完成，可以继续使用",
-        "这次完成了什么": [f"已完成 {manifest.get('version')} 版本更新", "已完成安装后文件核对", "已补充中文使用入口和新旧目录说明", "没有自动上传素材或产生模型费用"],
-        "原有内容是否保留": "已有项目、素材、成果、个人配置和历史目录均保留在原处，没有自动改名、移动或删除。",
+        "这次完成了什么": completed,
+        "原有内容是否保留": "已有项目、素材、成果、个人配置、个人工作流和历史目录均保留在原处，没有自动改名、移动或删除。",
         "还需要你做什么": next_steps,
         "从哪里继续": "打开工作台根目录中的“AI 内容工作台｜从这里开始”，再进入使用教程。",
     }
@@ -1395,6 +1497,78 @@ def native_backups(workbench: Path) -> set[Path]:
     }
 
 
+def sync_existing_managed_skill_mirrors(
+    source_skills: Path,
+    primary_skills_home: Path,
+    workbench: Path,
+    detection: dict[str, Any],
+    ticket_id: str,
+) -> list[dict[str, Any]]:
+    """Keep pre-existing duplicate managed skills on the same released version.
+
+    Only skill IDs that already exist in a secondary standard root are touched.
+    Every touched directory is copied to the workbench backup area first; user
+    skills and secondary-only directories are never copied, moved or deleted.
+    """
+    mirror_values = detection.get("skills_mirrors") or []
+    if not isinstance(mirror_values, list) or not mirror_values:
+        return []
+    source_by_name = {
+        path.name: path for path in source_skills.iterdir()
+        if path.is_dir() and (path / "SKILL.md").is_file()
+    }
+    allowed_roots = set(_default_skill_roots())
+    backup_parent = (
+        workbench / "系统文件_无需打开" / "backups"
+        if (workbench / "系统文件_无需打开").is_dir()
+        else workbench / "06_Backups"
+    )
+    safe_ticket = re.sub(r"[^A-Za-z0-9._-]+", "_", ticket_id)
+    stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup_root = backup_parent / f"before_skill_mirror_sync_{stamp}_{safe_ticket}"
+    records: list[dict[str, Any]] = []
+    for value in mirror_values:
+        mirror = Path(str(value)).expanduser().resolve()
+        if mirror == primary_skills_home.resolve():
+            continue
+        if mirror not in allowed_roots or mirror.is_symlink() or not mirror.is_dir():
+            raise DeploymentError("备用工作流目录不属于安全的标准位置，尚未同步。")
+        existing = sorted(
+            name for name in source_by_name
+            if (mirror / name / "SKILL.md").is_file()
+        )
+        if not existing:
+            continue
+        label = "codex-skills" if mirror == _default_skill_roots()[0] else "agents-skills"
+        checked = 0
+        for name in existing:
+            source = source_by_name[name]
+            target = mirror / name
+            if target.is_symlink():
+                raise DeploymentError("备用工作流目录包含软链接，尚未同步。")
+            backup = backup_root / label / name
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(target, backup)
+            shutil.copytree(source, target, dirs_exist_ok=True)
+            for source_file in sorted(path for path in source.rglob("*") if path.is_file()):
+                relative = source_file.relative_to(source)
+                installed = target / relative
+                if not installed.is_file() or sha256_file(source_file) != sha256_file(installed):
+                    raise DeploymentError("备用工作流目录同步后校验失败；备份已保留。")
+                checked += 1
+        records.append(
+            {
+                "skills_home": str(mirror),
+                "managed_skills_synchronized": len(existing),
+                "source_files_verified": checked,
+                "backup_root": str(backup_root / label),
+                "unmanaged_skills_preserved": True,
+                "directories_deleted_or_moved": False,
+            }
+        )
+    return records
+
+
 def run_full_workbench_install(
     package_dir: Path,
     workbench: Path,
@@ -1409,9 +1583,7 @@ def run_full_workbench_install(
     if install_mode == "first_install":
         if workbench.exists() and any(workbench.iterdir()):
             raise DeploymentError("首次安装目标不是空目录，尚未写入。")
-        if _managed_skill_count(skills_home):
-            raise DeploymentError("首次安装目标已经存在工作台能力，尚未写入。")
-    elif _workbench_state(workbench) != "managed" or not _managed_skill_count(skills_home):
+    elif _workbench_state(workbench) != "managed":
         raise DeploymentError("累计升级目标不是完整的已安装工作台，尚未写入。")
 
     verify_full_workbench_payload(package_dir, manifest)
@@ -1456,6 +1628,13 @@ def run_full_workbench_install(
         workbench,
         int(manifest["installed_skill_count"]),
     )
+    mirror_records = sync_existing_managed_skill_mirrors(
+        package_dir / "codex_skills",
+        skills_home,
+        workbench,
+        detection,
+        str(ticket["ticket_id"]),
+    )
     new_backups = native_backups(workbench) - backups_before
     backup_root = next(iter(new_backups)) if len(new_backups) == 1 else None
     if install_mode == "incremental_upgrade" and backup_root is None:
@@ -1481,6 +1660,8 @@ def run_full_workbench_install(
         "package_sha256": manifest["package_sha256"],
         "workbench": str(workbench),
         "skills_home": str(skills_home),
+        "skills_recovery": detection.get("skills_recovery", "not_needed"),
+        "skills_mirror_sync": mirror_records,
         "layout_contract": layout_contract,
         "backup_record": str(backup_root) if backup_root else "not_applicable_fresh_environment",
         "post_install_tree_verification": "passed",
@@ -1514,8 +1695,6 @@ def run_first_install(
 ) -> Path:
     if workbench.exists() and any(workbench.iterdir()):
         raise DeploymentError("首次安装目标不是空目录，尚未写入。")
-    if _managed_skill_count(skills_home):
-        raise DeploymentError("首次安装目标已经存在工作台能力，尚未写入。")
     if manifest["platform"] == "macos":
         installer = package_dir / "mac" / "tools" / "install_ai_content_workbench.sh"
         if not installer.is_file():

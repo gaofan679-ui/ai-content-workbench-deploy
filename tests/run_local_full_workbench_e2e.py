@@ -96,6 +96,18 @@ def main() -> int:
         if first_result != 0:
             raise RuntimeError("first install did not complete")
 
+        mirror_home = test_root / ".agents" / "skills"
+        duplicate_skill_ids = ("topic-selection-workflow", "social-copy-extract")
+        for skill_id in duplicate_skill_ids:
+            shutil.copytree(skills_home / skill_id, mirror_home / skill_id)
+            (mirror_home / skill_id / "SKILL.md").write_text(
+                f"historical duplicate: {skill_id}\n", encoding="utf-8"
+            )
+        personal_skill = mirror_home / "personal-private-skill" / "SKILL.md"
+        personal_skill.parent.mkdir(parents=True)
+        personal_skill.write_text("personal-preserved\n", encoding="utf-8")
+        personal_skill_before = sha256(personal_skill)
+
         project_marker = workbench / "02_项目工作区" / "rc3-e2e-project.txt"
         output_marker = workbench / "03_最终成果" / "rc3-e2e-output.txt"
         config = workbench / "系统文件_无需打开" / "config" / "customer_config.env"
@@ -116,6 +128,8 @@ def main() -> int:
             **{f"legacy_{index}": sha256(path) for index, path in enumerate(legacy_markers)},
         }
 
+        os.environ["HOME"] = str(test_root)
+        command.skills_home = None
         upgrade_result = deploy.apply(command)
         if upgrade_result != 0:
             raise RuntimeError("upgrade did not complete")
@@ -143,6 +157,16 @@ def main() -> int:
             raise RuntimeError("historical mixed layout was not resolved by the active manifest")
         if not Path(str(receipt.get("backup_record"))).is_dir():
             raise RuntimeError("upgrade backup was not recorded")
+        mirror_sync = receipt.get("skills_mirror_sync")
+        if not isinstance(mirror_sync, list) or len(mirror_sync) != 1:
+            raise RuntimeError("duplicate managed skill roots were not synchronized")
+        if mirror_sync[0].get("managed_skills_synchronized") != len(duplicate_skill_ids):
+            raise RuntimeError("not all duplicate managed skills were synchronized")
+        for skill_id in duplicate_skill_ids:
+            if sha256(mirror_home / skill_id / "SKILL.md") != sha256(skills_home / skill_id / "SKILL.md"):
+                raise RuntimeError(f"managed duplicate was not synchronized: {skill_id}")
+        if sha256(personal_skill) != personal_skill_before:
+            raise RuntimeError("personal skill changed during managed mirror recovery")
         print(
             json.dumps(
                 {
@@ -155,6 +179,9 @@ def main() -> int:
                     "installed_skill_count": 37,
                     "project_output_config_preserved": True,
                     "backup_recorded": True,
+                    "dual_skill_roots_recovered": True,
+                    "managed_duplicates_backed_up_and_synchronized": True,
+                    "personal_skill_preserved": True,
                     "login_item_registration": False,
                     "paid_calls": 0,
                     "external_uploads": 0,

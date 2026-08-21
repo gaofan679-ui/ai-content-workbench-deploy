@@ -439,16 +439,133 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(report["recovery"], "manual_plan_required")
             self.assertIn("unsafe", report["reason"])
 
-    def test_partial_environment_is_blocked(self) -> None:
+    def test_partial_environment_is_recovered_as_first_install(self) -> None:
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             skills = root / ".codex" / "skills" / "customer-workbench-deployer"
             skills.mkdir(parents=True)
             (skills / "SKILL.md").write_text("managed", encoding="utf-8")
-            with self.assertRaises(deploy.DeploymentError):
-                deploy.detect_install_context(
-                    str(root / "AIContentWorkbench"), str(root / ".codex" / "skills")
+            result = deploy.detect_install_context(
+                str(root / "AIContentWorkbench"), str(root / ".codex" / "skills")
+            )
+            self.assertEqual(result["install_mode"], "first_install")
+            self.assertEqual(
+                result["skills_recovery"],
+                "backup_existing_managed_residue_and_complete_first_install",
+            )
+
+    def test_two_standard_skill_roots_select_dominant_root_and_plan_mirror_sync(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            (workbench / "系统文件_无需打开").mkdir(parents=True)
+            codex_root = root / ".codex" / "skills"
+            agents_root = root / ".agents" / "skills"
+            for skill_name in ("topic-selection-workflow",):
+                skill = codex_root / skill_name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text("old", encoding="utf-8")
+            for skill_name in (
+                "customer-workbench-deployer",
+                "topic-selection-workflow",
+                "social-copy-extract",
+            ):
+                skill = agents_root / skill_name
+                skill.mkdir(parents=True)
+                (skill / "SKILL.md").write_text("current", encoding="utf-8")
+
+            with mock.patch.object(deploy.Path, "home", return_value=root):
+                result = deploy.detect_install_context(None, None)
+
+            self.assertEqual(result["install_mode"], "incremental_upgrade")
+            self.assertEqual(Path(result["skills_home"]), agents_root.resolve())
+            self.assertEqual(result["skills_mirrors"], [str(codex_root.resolve())])
+            self.assertEqual(
+                result["skills_recovery"],
+                "backup_and_sync_existing_managed_duplicates",
+            )
+
+    def test_missing_skills_are_recreated_for_managed_workbench(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            (workbench / "系统文件_无需打开").mkdir(parents=True)
+            with mock.patch.object(deploy.Path, "home", return_value=root):
+                result = deploy.detect_install_context(None, None)
+            self.assertEqual(result["install_mode"], "incremental_upgrade")
+            self.assertEqual(result["skills_recovery"], "recreate_missing_managed_skills")
+
+    def test_managed_skill_residue_is_backed_up_during_first_install(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            residue = root / ".codex" / "skills" / "topic-selection-workflow"
+            residue.mkdir(parents=True)
+            (residue / "SKILL.md").write_text("old", encoding="utf-8")
+            with mock.patch.object(deploy.Path, "home", return_value=root):
+                result = deploy.detect_install_context(None, None)
+            self.assertEqual(result["install_mode"], "first_install")
+            self.assertEqual(
+                result["skills_recovery"],
+                "backup_existing_managed_residue_and_complete_first_install",
+            )
+
+    def test_existing_duplicate_managed_skills_are_backed_up_and_synchronized(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            (workbench / "系统文件_无需打开" / "backups").mkdir(parents=True)
+            source = root / "package-skills"
+            primary = root / ".agents" / "skills"
+            mirror = root / ".codex" / "skills"
+            current = source / "topic-selection-workflow"
+            current.mkdir(parents=True)
+            (current / "SKILL.md").write_text("new", encoding="utf-8")
+            old = mirror / "topic-selection-workflow"
+            old.mkdir(parents=True)
+            (old / "SKILL.md").write_text("old", encoding="utf-8")
+            personal = mirror / "my-personal-skill"
+            personal.mkdir(parents=True)
+            (personal / "SKILL.md").write_text("personal", encoding="utf-8")
+
+            with mock.patch.object(deploy.Path, "home", return_value=root):
+                records = deploy.sync_existing_managed_skill_mirrors(
+                    source,
+                    primary,
+                    workbench,
+                    {"skills_mirrors": [str(mirror)]},
+                    "test-ticket",
                 )
+
+            self.assertEqual((old / "SKILL.md").read_text(encoding="utf-8"), "new")
+            self.assertEqual((personal / "SKILL.md").read_text(encoding="utf-8"), "personal")
+            self.assertEqual(records[0]["managed_skills_synchronized"], 1)
+            backup = Path(records[0]["backup_root"]) / "topic-selection-workflow" / "SKILL.md"
+            self.assertEqual(backup.read_text(encoding="utf-8"), "old")
+
+    def test_skill_mirror_symlink_is_blocked_before_sync(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            workbench = root / "AIContentWorkbench"
+            (workbench / "系统文件_无需打开" / "backups").mkdir(parents=True)
+            source = root / "package-skills" / "topic-selection-workflow"
+            source.mkdir(parents=True)
+            (source / "SKILL.md").write_text("new", encoding="utf-8")
+            external = root / "external-topic"
+            external.mkdir()
+            (external / "SKILL.md").write_text("external", encoding="utf-8")
+            mirror = root / ".codex" / "skills"
+            mirror.mkdir(parents=True)
+            (mirror / "topic-selection-workflow").symlink_to(external, target_is_directory=True)
+
+            with mock.patch.object(deploy.Path, "home", return_value=root):
+                with self.assertRaisesRegex(deploy.DeploymentError, "软链接"):
+                    deploy.sync_existing_managed_skill_mirrors(
+                        source.parent,
+                        root / ".agents" / "skills",
+                        workbench,
+                        {"skills_mirrors": [str(mirror)]},
+                        "test-ticket",
+                    )
 
     def test_bundle_ticket_selects_platform_and_mode(self) -> None:
         now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
