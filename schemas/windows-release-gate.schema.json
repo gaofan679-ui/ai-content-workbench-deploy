@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-content-workbench/windows-release-gate.schema.json",
+  "title": "AI 内容工作台 Windows 对客票据放行报告",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "product_id", "version", "platform", "status",
+    "executed_on_windows", "checks", "package_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "product_id": {"const": "ai-content-workbench"},
+    "version": {"type": "string", "minLength": 1},
+    "platform": {"const": "windows"},
+    "status": {"const": "pass"},
+    "executed_on_windows": {"const": true},
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clean_first_install", "historical_upgrade", "powershell_execution",
+        "web_workbench_build", "web_workbench_launch", "post_install_receipt"
+      ],
+      "properties": {
+        "clean_first_install": {"const": "installed_and_verified"},
+        "historical_upgrade": {"const": "installed_and_verified"},
+        "powershell_execution": {"const": "passed"},
+        "web_workbench_build": {"const": "passed"},
+        "web_workbench_launch": {"const": "passed"},
+        "post_install_receipt": {"const": "passed"}
+      }
+    },
+    "package_sha256": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+    }
+  }
+}

@@ -1,0 +1,68 @@
+name: windows-release-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: Target release version
+        required: true
+        type: string
+      first_install_sha256:
+        description: Windows first-install package SHA-256
+        required: true
+        type: string
+      upgrade_sha256:
+        description: Windows cumulative-upgrade package SHA-256
+        required: true
+        type: string
+      baseline_sha256:
+        description: Historical Windows first-install package SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-release-gate:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      AICW_FIRST_INSTALL_URL: ${{ secrets.AICW_WINDOWS_FIRST_INSTALL_URL }}
+      AICW_UPGRADE_URL: ${{ secrets.AICW_WINDOWS_UPGRADE_URL }}
+      AICW_BASELINE_URL: ${{ secrets.AICW_WINDOWS_BASELINE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run clean install and historical upgrade
+        shell: powershell
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AICW_FIRST_INSTALL_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_UPGRADE_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_BASELINE_URL)) {
+            throw "Windows gate package secrets are not configured."
+          }
+          & .\scripts\run_windows_release_gate.ps1 `
+            -TargetVersion '${{ inputs.target_version }}' `
+            -FirstInstallUrl $env:AICW_FIRST_INSTALL_URL `
+            -FirstInstallSha256 '${{ inputs.first_install_sha256 }}' `
+            -UpgradeUrl $env:AICW_UPGRADE_URL `
+            -UpgradeSha256 '${{ inputs.upgrade_sha256 }}' `
+            -BaselineUrl $env:AICW_BASELINE_URL `
+            -BaselineSha256 '${{ inputs.baseline_sha256 }}' `
+            -OutputRoot "$env:RUNNER_TEMP\aicw-windows-release-gate"
+
+      - name: Upload release-gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-gate-${{ inputs.target_version }}
+          path: |
+            ${{ runner.temp }}\aicw-windows-release-gate\windows-release-gate.json
+            ${{ runner.temp }}\aicw-windows-release-gate\evidence
+          if-no-files-found: warn
+          retention-days: 7

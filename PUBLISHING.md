@@ -33,6 +33,8 @@ GitHub 公共固定入口（主入口）
 6. 在仓库设置中启用 GitHub Release immutability；发布后核对不可变标识和资产证明。
 7. 真机试点通过前只更新 `pilot`；Mac、Windows 都通过后才更新 `stable`。
 
+Windows 包在创建任何对客票据前还必须提供 Windows 放行报告：至少一轮干净环境首次安装和一轮真实历史基线累计升级，实际执行 PowerShell、网页构建、网页启动和安装后回执。`windows_real_machine_pending`、静态扫描或非 Windows 模拟报告不能创建包含 Windows 包的正式票据。
+
 ## 客户包下载控制
 
 优先方案是腾讯云 COS 等私有对象存储的预签名 GET URL：
@@ -56,6 +58,7 @@ python scripts/make_ticket.py \
   --artifact <Mac升级清单> <不可变清单URL> <限时包URL> \
   --artifact <Windows首次安装清单> <不可变清单URL> <限时包URL> \
   --artifact <Windows升级清单> <不可变清单URL> <限时包URL> \
+  --windows-gate-report <Windows端到端验收报告.json> \
   --expires-in-hours 24 \
   --output <仓库外的安全目录>/<客户标识>.ticket.json
 ```

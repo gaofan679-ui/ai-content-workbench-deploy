@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "windows-rc2n-build-output-path-contamination",
+      "platforms": ["windows"],
+      "versions": ["1.8.0-rc.2n"],
+      "match_any": [
+        "构建日志误作路径",
+        "没有返回唯一构建目录",
+        "返回了无效构建目录",
+        "Cannot bind argument to parameter.*Path.*empty"
+      ],
+      "category": "package_defect",
+      "action": "new_immutable_package",
+      "safe_to_retry": false,
+      "customer_message": "客户包自身未通过安装验收，原有内容已保护，需要部署方发布修正版。"
+    },
+    {
+      "id": "transient-download-transport",
+      "platforms": ["macos", "windows"],
+      "versions": ["*"],
+      "match_any": [
+        "stream disconnected",
+        "error decoding response body",
+        "TLS",
+        "timed out",
+        "客户包自动下载失败"
+      ],
+      "category": "network",
+      "action": "retry_network_routes",
+      "safe_to_retry": true,
+      "customer_message": "当前网络通道暂时不可用，部署程序会自动换线路并继续。"
+    },
+    {
+      "id": "dependency-path-not-refreshed",
+      "platforms": ["macos", "windows"],
+      "versions": ["*"],
+      "match_any": [
+        "command not found",
+        "is not recognized",
+        "PATH 尚未刷新"
+      ],
+      "category": "dependency",
+      "action": "refresh_environment_and_retry",
+      "safe_to_retry": true,
+      "customer_message": "基础工具已经安装但当前进程尚未识别，部署程序会刷新环境后继续。"
+    }
+  ]
+}

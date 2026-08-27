@@ -1,0 +1,67 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("aicw_make_ticket", ROOT / "scripts" / "make_ticket.py")
+assert SPEC and SPEC.loader
+make_ticket = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(make_ticket)
+
+
+class WindowsReleaseGateTests(unittest.TestCase):
+    def report(self, sha_values: list[str]) -> dict:
+        return {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "version": "1.8.0-rc.2o",
+            "platform": "windows",
+            "status": "pass",
+            "executed_on_windows": True,
+            "checks": dict(make_ticket.WINDOWS_GATE_CHECKS),
+            "package_sha256": sha_values,
+        }
+
+    def test_matching_windows_gate_passes(self) -> None:
+        hashes = {"a" * 64, "b" * 64}
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-gate.json"
+            path.write_text(json.dumps(self.report(sorted(hashes))), encoding="utf-8")
+            make_ticket.validate_windows_gate(
+                path, version="1.8.0-rc.2o", package_sha256=hashes
+            )
+
+    def test_simulation_or_wrong_package_cannot_unlock_customer_ticket(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-gate.json"
+            report = self.report(["a" * 64])
+            report["executed_on_windows"] = False
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                make_ticket.validate_windows_gate(
+                    path,
+                    version="1.8.0-rc.2o",
+                    package_sha256={"a" * 64},
+                )
+
+    def test_missing_historical_upgrade_blocks_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-gate.json"
+            report = self.report(["a" * 64])
+            report["checks"]["historical_upgrade"] = "pending"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "historical_upgrade"):
+                make_ticket.validate_windows_gate(
+                    path,
+                    version="1.8.0-rc.2o",
+                    package_sha256={"a" * 64},
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

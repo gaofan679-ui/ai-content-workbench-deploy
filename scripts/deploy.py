@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from typing import Any
 import urllib.parse
 import urllib.request
@@ -35,6 +36,10 @@ PRODUCT_ID = "ai-content-workbench"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 BROWSER_FALLBACK_TIMEOUT_SECONDS = 90
 MINIMUM_TICKET_REMAINING_SECONDS = 20 * 60
+AUTOPILOT_SCHEMA_VERSION = 1
+MAX_SAFE_RECOVERY_ATTEMPTS = 2
+DEPLOYER_STATE_ENV = "AICW_DEPLOYER_STATE_ROOT"
+RECOVERY_CATALOG = Path(__file__).resolve().parents[1] / "recovery" / "known-issues.json"
 MANAGED_SKILL_IDS = {
     "ai-commercial-video-remix", "ai-model-asset-codex", "ai-network-doctor",
     "ai-video-decompose-gemini", "ai-video-editing-decompose", "ai-video-editing-post",
@@ -66,6 +71,136 @@ REQUIRED_EXISTING_ACTIVE_DIRECTORIES = ("core_config", "projects", "outputs")
 
 class DeploymentError(RuntimeError):
     pass
+
+
+def safe_identifier(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
+    return cleaned[:120] or "deployment"
+
+
+def deployer_state_root() -> Path:
+    override = os.environ.get(DEPLOYER_STATE_ENV)
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path.home() / ".aicw-deployer").resolve()
+
+
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + f".{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def redact_error_text(value: str) -> str:
+    """Keep diagnostic meaning without persisting signed URLs or query tokens."""
+    value = re.sub(r"https://[^\s]+", lambda match: redacted_location(match.group(0)), value)
+    value = re.sub(r"(?i)(api[_-]?key|token|secret|signature)=\S+", r"\1=<redacted>", value)
+    return value[-4000:]
+
+
+def load_recovery_catalog() -> dict[str, Any]:
+    if not RECOVERY_CATALOG.is_file():
+        return {"schema_version": AUTOPILOT_SCHEMA_VERSION, "rules": []}
+    try:
+        payload = json.loads(RECOVERY_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DeploymentError("部署恢复规则库无法读取。") from exc
+    if payload.get("schema_version") != AUTOPILOT_SCHEMA_VERSION:
+        raise DeploymentError("部署恢复规则库版本不兼容。")
+    rules = payload.get("rules")
+    if not isinstance(rules, list):
+        raise DeploymentError("部署恢复规则库格式无效。")
+    return payload
+
+
+def classify_deployment_failure(message: str, *, platform_id: str, version: str) -> dict[str, Any]:
+    """Map an error to a bounded next action; never authorize payload mutation."""
+    normalized = redact_error_text(message)
+    catalog = load_recovery_catalog()
+    for rule in catalog["rules"]:
+        if not isinstance(rule, dict):
+            continue
+        platforms = rule.get("platforms") or ["macos", "windows"]
+        versions = rule.get("versions") or ["*"]
+        if platform_id not in platforms or ("*" not in versions and version not in versions):
+            continue
+        patterns = rule.get("match_any") or []
+        if any(re.search(str(pattern), normalized, re.IGNORECASE) for pattern in patterns):
+            return {
+                "category": str(rule.get("category") or "unknown"),
+                "action": str(rule.get("action") or "release_review"),
+                "safe_to_retry": bool(rule.get("safe_to_retry", False)),
+                "rule_id": str(rule.get("id") or "catalog-rule"),
+                "customer_message": str(rule.get("customer_message") or "部署已安全暂停，需要部署方处理。"),
+            }
+    generic_rules = (
+        (r"SHA-256|哈希|文件大小与不可变版本清单不一致|越界路径|软链接", "integrity", "security_block", False,
+         "客户包安全校验没有通过，未继续安装；需要部署方重新核对正式包。"),
+        (r"timed out|timeout|TLS|certificate|network|网络|下载失败|无法读取远程", "network", "retry_network_routes", True,
+         "当前网络通道暂时不可用，部署程序会自动换线路并继续。"),
+        (r"Node|npm|Python|ffmpeg|PATH|基础环境|依赖", "dependency", "refresh_environment_and_retry", True,
+         "基础工具尚未就绪，部署程序会自动补齐或刷新后继续。"),
+        (r"管理员|permission|access.*denied|权限|验证码|登录|付款", "authorization", "user_confirmation", False,
+         "需要你在系统或账号界面完成一次本人确认，完成后可以从断点继续。"),
+        (r"冲突|两个工作台|清单越界|真实项目数据", "data_conflict", "manual_plan", False,
+         "检测到真实数据冲突，已停止写入，需要先确认保留哪一份。"),
+        (r"正式安装器|安装包缺少|构建目录|构建结果|安装动作数量|指纹核验", "package_defect", "new_immutable_package", False,
+         "客户包自身未通过安装验收，原有内容已保护，需要部署方发布修正版。"),
+    )
+    for pattern, category, action, safe_to_retry, customer_message in generic_rules:
+        if re.search(pattern, normalized, re.IGNORECASE):
+            return {
+                "category": category,
+                "action": action,
+                "safe_to_retry": safe_to_retry,
+                "rule_id": "generic",
+                "customer_message": customer_message,
+            }
+    return {
+        "category": "unknown",
+        "action": "diagnose_then_release_review",
+        "safe_to_retry": False,
+        "rule_id": "unclassified",
+        "customer_message": "部署遇到未登记问题，已保留断点和证据，没有继续改动原有内容。",
+    }
+
+
+def session_paths(ticket: dict[str, Any]) -> dict[str, Path]:
+    session = deployer_state_root() / "sessions" / safe_identifier(str(ticket["ticket_id"]))
+    cache = deployer_state_root() / "cache" / f"{ticket['package_sha256']}.zip"
+    return {"root": session, "checkpoint": session / "checkpoint.json", "cache": cache}
+
+
+def write_checkpoint(
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    *,
+    stage: str,
+    status: str,
+    attempts: dict[str, int] | None = None,
+    incident: dict[str, Any] | None = None,
+) -> Path:
+    paths = session_paths(ticket)
+    payload: dict[str, Any] = {
+        "schema_version": AUTOPILOT_SCHEMA_VERSION,
+        "ticket_id": ticket["ticket_id"],
+        "product_id": PRODUCT_ID,
+        "version": manifest["version"],
+        "platform": manifest["platform"],
+        "install_mode": manifest["install_mode"],
+        "package_sha256": manifest["package_sha256"],
+        "stage": stage,
+        "status": status,
+        "attempts": attempts or {},
+        "updated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "contains_signed_urls": False,
+        "rollback": "requires_separate_explicit_confirmation",
+    }
+    if incident:
+        payload["incident"] = incident
+    atomic_write_json(paths["checkpoint"], payload)
+    return paths["checkpoint"]
 
 
 def utc_now() -> dt.datetime:
@@ -1284,6 +1419,47 @@ def download_package(source: str, destination: Path) -> None:
             raise DeploymentError("客户包下载失败，请检查网络后再试。") from curl_exc
 
 
+def acquire_verified_package(
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    attempts: dict[str, int],
+) -> Path:
+    """Reuse a verified immutable package and retry only no-write download failures."""
+    paths = session_paths(ticket)
+    cache = paths["cache"]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    expected_size = int(manifest["package_size_bytes"])
+    expected_sha = str(manifest["package_sha256"])
+    if cache.is_file():
+        if cache.stat().st_size != expected_size or sha256_file(cache) != expected_sha:
+            raise DeploymentError("本机部署缓存与不可变版本清单不一致，已停止使用该缓存。")
+        attempts["download"] = 0
+        return cache
+
+    last_error: DeploymentError | None = None
+    for attempt in range(1, MAX_SAFE_RECOVERY_ATTEMPTS + 1):
+        attempts["download"] = attempt
+        partial = cache.with_name(cache.name + f".{uuid.uuid4().hex}.part")
+        try:
+            download_package(str(ticket["package_url"]), partial)
+            if partial.stat().st_size != expected_size:
+                raise DeploymentError("客户包文件大小与不可变版本清单不一致。")
+            if sha256_file(partial) != expected_sha:
+                raise DeploymentError("客户包 SHA-256 与不可变版本清单不一致。")
+            os.replace(partial, cache)
+            return cache
+        except DeploymentError as exc:
+            last_error = exc
+            decision = classify_deployment_failure(
+                str(exc), platform_id=str(manifest["platform"]), version=str(manifest["version"])
+            )
+            if not decision["safe_to_retry"] or decision["category"] != "network":
+                raise
+        finally:
+            partial.unlink(missing_ok=True)
+    raise last_error or DeploymentError("客户包自动下载没有完成。")
+
+
 def safe_extract(archive: Path, destination: Path) -> None:
     try:
         with zipfile.ZipFile(archive) as bundle:
@@ -1797,66 +1973,161 @@ def inspect(args: argparse.Namespace) -> int:
     return 0 if can_confirm else 2
 
 
+def deployment_status(args: argparse.Namespace) -> int:
+    ticket, manifest, _, _, _ = load_context(args)
+    checkpoint = session_paths(ticket)["checkpoint"]
+    if not checkpoint.is_file():
+        result = {
+            "current_conclusion": "尚未开始安装。",
+            "can_resume_automatically": False,
+            "next_step": "先完成只读检查；确认后再开始部署。",
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    try:
+        state = json.loads(checkpoint.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DeploymentError("部署断点记录无法读取。") from exc
+    for key, expected in (
+        ("ticket_id", ticket["ticket_id"]),
+        ("package_sha256", manifest["package_sha256"]),
+        ("version", manifest["version"]),
+    ):
+        if state.get(key) != expected:
+            raise DeploymentError("部署断点与当前票据不一致，不能自动继续。")
+    incident = state.get("incident") if isinstance(state.get("incident"), dict) else {}
+    can_resume = state.get("status") == "blocked" and bool(incident.get("safe_to_retry"))
+    result = {
+        "current_conclusion": (
+            "部署已经完成并通过验收。"
+            if state.get("status") == "completed"
+            else str(incident.get("customer_message") or "部署已经保存进度。")
+        ),
+        "stage": state.get("stage"),
+        "can_resume_automatically": can_resume,
+        "next_step": (
+            "Codex 可以直接从断点自动继续，不需要再次询问使用者。"
+            if can_resume
+            else "请按当前结论处理；不要盲目重复安装。"
+        ),
+    }
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def resume(args: argparse.Namespace) -> int:
+    ticket, manifest, _, _, _ = load_context(args)
+    checkpoint = session_paths(ticket)["checkpoint"]
+    if not checkpoint.is_file():
+        raise DeploymentError("没有找到已经确认过的部署断点，不能跳过首次确认。")
+    try:
+        state = json.loads(checkpoint.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DeploymentError("部署断点记录无法读取。") from exc
+    incident = state.get("incident") if isinstance(state.get("incident"), dict) else {}
+    same_deployment = (
+        state.get("ticket_id") == ticket["ticket_id"]
+        and state.get("package_sha256") == manifest["package_sha256"]
+        and state.get("version") == manifest["version"]
+    )
+    if not same_deployment:
+        raise DeploymentError("部署断点与当前票据不一致，不能自动继续。")
+    if state.get("status") != "blocked" or not incident.get("safe_to_retry"):
+        raise DeploymentError("当前问题不在安全自动恢复范围内，不能强行继续。")
+    args.confirm_write = "YES"
+    return apply(args)
+
+
 def apply(args: argparse.Namespace) -> int:
     if args.confirm_write != "YES":
         raise DeploymentError("尚未获得明确写入确认；当前没有下载或安装。")
     ticket, manifest, workbench, skills_home, detection = load_context(args)
-    ensure_ticket_time_window(ticket)
-    environment = environment_report(manifest)
-    if environment["status"] != "ready":
-        bootstrap_result = bootstrap_missing_dependencies(manifest, environment)
-        environment = bootstrap_result["environment_after"]
-        validate_ticket(ticket)
-    else:
-        bootstrap_result = {
-            "status": "not_needed",
-            "method": None,
-            "attempted_tools": [],
-            "records": [],
-        }
-    with tempfile.TemporaryDirectory(prefix="aicw-deploy-") as temporary_name:
-        temporary = Path(temporary_name)
-        archive = temporary / str(manifest["package_file_name"])
-        download_package(str(ticket["package_url"]), archive)
-        actual_size = archive.stat().st_size
-        actual_sha = sha256_file(archive)
-        if actual_size != int(manifest["package_size_bytes"]):
-            raise DeploymentError("客户包文件大小与不可变版本清单不一致。")
-        if actual_sha != str(manifest["package_sha256"]):
-            raise DeploymentError("客户包 SHA-256 与不可变版本清单不一致。")
-        extracted = temporary / "extracted"
-        extracted.mkdir()
-        safe_extract(archive, extracted)
-        package_root = extracted / str(manifest["package_root"])
-        package_dir = package_root / str(manifest["package_subdir"])
-        if manifest.get("package_contract") == "full_workbench_v1":
-            receipt = run_full_workbench_install(
-                package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment, detection
-            )
-            backup_record = None
-        elif manifest["install_mode"] == "incremental_upgrade":
-            upgrade_script = package_dir / "scripts" / "module_upgrade.py"
-            module_manifest = package_dir / "module_manifest.json"
-            if not upgrade_script.is_file() or not module_manifest.is_file():
-                raise DeploymentError("客户包缺少升级工具或模块清单。")
-            base = [
-                sys.executable,
-                str(upgrade_script),
-                "--package", str(package_dir),
-                "--workbench", str(workbench),
-                "--skills-home", str(skills_home),
-            ]
-            run_upgrade(base + ["--check"])
-            installed = run_upgrade(base + ["--apply", "--confirm-write", "YES"])
-            backup_record = backup_record_from_output(installed.stdout)
-            receipt = write_receipt(
-                workbench, skills_home, ticket, manifest, args.ticket, backup_record, environment
-            )
+    attempts: dict[str, int] = {}
+    stage = "context_validated"
+    write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
+    try:
+        ensure_ticket_time_window(ticket)
+        environment = environment_report(manifest)
+        if environment["status"] != "ready":
+            attempts["dependency_bootstrap"] = 1
+            bootstrap_result = bootstrap_missing_dependencies(manifest, environment)
+            environment = bootstrap_result["environment_after"]
+            validate_ticket(ticket)
         else:
-            receipt = run_first_install(
-                package_root, package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment
-            )
-            backup_record = None
+            bootstrap_result = {
+                "status": "not_needed",
+                "method": None,
+                "attempted_tools": [],
+                "records": [],
+            }
+        stage = "dependencies_ready"
+        write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
+
+        archive = acquire_verified_package(ticket, manifest, attempts)
+        stage = "package_verified"
+        write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
+
+        with tempfile.TemporaryDirectory(prefix="aicw-deploy-") as temporary_name:
+            temporary = Path(temporary_name)
+            extracted = temporary / "extracted"
+            extracted.mkdir()
+            safe_extract(archive, extracted)
+            stage = "package_extracted"
+            write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
+            package_root = extracted / str(manifest["package_root"])
+            package_dir = package_root / str(manifest["package_subdir"])
+            attempts["installer"] = 1
+            stage = "installer_running"
+            write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
+            if manifest.get("package_contract") == "full_workbench_v1":
+                receipt = run_full_workbench_install(
+                    package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment, detection
+                )
+                backup_record = None
+            elif manifest["install_mode"] == "incremental_upgrade":
+                upgrade_script = package_dir / "scripts" / "module_upgrade.py"
+                module_manifest = package_dir / "module_manifest.json"
+                if not upgrade_script.is_file() or not module_manifest.is_file():
+                    raise DeploymentError("客户包缺少升级工具或模块清单。")
+                base = [
+                    sys.executable,
+                    str(upgrade_script),
+                    "--package", str(package_dir),
+                    "--workbench", str(workbench),
+                    "--skills-home", str(skills_home),
+                ]
+                run_upgrade(base + ["--check"])
+                installed = run_upgrade(base + ["--apply", "--confirm-write", "YES"])
+                backup_record = backup_record_from_output(installed.stdout)
+                receipt = write_receipt(
+                    workbench, skills_home, ticket, manifest, args.ticket, backup_record, environment
+                )
+            else:
+                receipt = run_first_install(
+                    package_root, package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment
+                )
+                backup_record = None
+        stage = "installed_and_verified"
+        write_checkpoint(ticket, manifest, stage=stage, status="completed", attempts=attempts)
+    except DeploymentError as exc:
+        decision = classify_deployment_failure(
+            str(exc), platform_id=str(manifest["platform"]), version=str(manifest["version"])
+        )
+        normalized = redact_error_text(str(exc))
+        incident = {
+            "category": decision["category"],
+            "action": decision["action"],
+            "safe_to_retry": decision["safe_to_retry"],
+            "rule_id": decision["rule_id"],
+            "error_fingerprint": hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            "technical_summary": normalized,
+            "customer_message": decision["customer_message"],
+            "stage_when_blocked": stage,
+        }
+        write_checkpoint(
+            ticket, manifest, stage=stage, status="blocked", attempts=attempts, incident=incident
+        )
+        raise DeploymentError(str(decision["customer_message"])) from exc
     print(
         json.dumps(
             {
@@ -1876,7 +2147,12 @@ def apply(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="AI 内容工作台受控部署入口")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name, handler in (("inspect", inspect), ("apply", apply)):
+    for name, handler in (
+        ("inspect", inspect),
+        ("apply", apply),
+        ("status", deployment_status),
+        ("resume", resume),
+    ):
         command = sub.add_parser(name)
         command.add_argument("--ticket", required=True)
         command.add_argument("--manifest")

@@ -29,6 +29,9 @@ def main() -> int:
         ROOT / "scripts" / "deploy.py",
         ROOT / "scripts" / "make_ticket.py",
         ROOT / "scripts" / "summarize_receipts.py",
+        ROOT / "recovery" / "known-issues.json",
+        ROOT / "schemas" / "recovery-catalog.schema.json",
+        ROOT / "schemas" / "windows-release-gate.schema.json",
     ]
     for path in required:
         if not path.is_file():
@@ -65,6 +68,29 @@ def main() -> int:
                 errors.append(f"包 SHA-256 无效：{relative}")
             if "package_url" in manifest:
                 errors.append(f"公开版本清单不得包含客户包 URL：{relative}")
+
+    try:
+        recovery = json.loads((ROOT / "recovery" / "known-issues.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        errors.append(f"部署恢复规则库无法解析：{exc}")
+        recovery = {}
+    recovery_ids: set[str] = set()
+    safe_retry_actions = {"retry_network_routes", "refresh_environment_and_retry"}
+    for rule in recovery.get("rules") or []:
+        rule_id = str(rule.get("id") or "")
+        if not rule_id or rule_id in recovery_ids:
+            errors.append(f"部署恢复规则 ID 缺失或重复：{rule_id or '<empty>'}")
+        recovery_ids.add(rule_id)
+        patterns = rule.get("match_any") or []
+        if not patterns:
+            errors.append(f"部署恢复规则缺少错误指纹：{rule_id}")
+        for pattern in patterns:
+            try:
+                re.compile(str(pattern), re.IGNORECASE)
+            except re.error as exc:
+                errors.append(f"部署恢复规则正则无效：{rule_id}: {exc}")
+        if rule.get("safe_to_retry") and rule.get("action") not in safe_retry_actions:
+            errors.append(f"部署恢复规则越权自动重试：{rule_id}")
 
     public_files = [
         path

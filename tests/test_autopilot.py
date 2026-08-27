@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+import datetime as dt
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("aicw_deploy_autopilot", ROOT / "scripts" / "deploy.py")
+assert SPEC and SPEC.loader
+deploy = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(deploy)
+
+
+def ticket_and_manifest() -> tuple[dict, dict]:
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    package_sha = "a" * 64
+    ticket = {
+        "schema_version": 1,
+        "ticket_id": "autopilot-test-ticket",
+        "customer_id": "test-machine",
+        "issued_at": now.isoformat(),
+        "expires_at": (now + dt.timedelta(hours=1)).isoformat(),
+        "product_id": "ai-content-workbench",
+        "version": "1.8.0-rc.2n",
+        "platform": "windows",
+        "install_mode": "incremental_upgrade",
+        "manifest_url": "https://example.invalid/manifest.json",
+        "package_url": "https://example.invalid/package.zip?secret=must-not-persist",
+        "package_size_bytes": 3,
+        "package_sha256": package_sha,
+    }
+    manifest = {
+        "version": ticket["version"],
+        "platform": ticket["platform"],
+        "install_mode": ticket["install_mode"],
+        "package_sha256": package_sha,
+        "package_size_bytes": 3,
+    }
+    return ticket, manifest
+
+
+class AutopilotTests(unittest.TestCase):
+    def test_rc2n_path_contamination_is_a_package_defect_not_a_retry(self) -> None:
+        decision = deploy.classify_deployment_failure(
+            "安装器把构建日志误作路径，随后没有返回唯一构建目录",
+            platform_id="windows",
+            version="1.8.0-rc.2n",
+        )
+        self.assertEqual(decision["rule_id"], "windows-rc2n-build-output-path-contamination")
+        self.assertEqual(decision["category"], "package_defect")
+        self.assertFalse(decision["safe_to_retry"])
+
+    def test_network_failure_is_safe_for_bounded_retry(self) -> None:
+        decision = deploy.classify_deployment_failure(
+            "stream disconnected before completion",
+            platform_id="windows",
+            version="1.8.0-rc.2o",
+        )
+        self.assertEqual(decision["category"], "network")
+        self.assertTrue(decision["safe_to_retry"])
+
+    def test_checkpoint_contains_no_signed_url(self) -> None:
+        ticket, manifest = ticket_and_manifest()
+        with tempfile.TemporaryDirectory() as name, mock.patch.dict(
+            deploy.os.environ, {deploy.DEPLOYER_STATE_ENV: name}
+        ):
+            checkpoint = deploy.write_checkpoint(
+                ticket,
+                manifest,
+                stage="package_verified",
+                status="running",
+                attempts={"download": 1},
+            )
+            text = checkpoint.read_text(encoding="utf-8")
+            self.assertNotIn("must-not-persist", text)
+            self.assertNotIn("package_url", text)
+            self.assertEqual(json.loads(text)["stage"], "package_verified")
+
+    def test_verified_cache_is_reused_without_network(self) -> None:
+        ticket, manifest = ticket_and_manifest()
+        manifest["package_sha256"] = deploy.hashlib.sha256(b"zip").hexdigest()
+        ticket["package_sha256"] = manifest["package_sha256"]
+        with tempfile.TemporaryDirectory() as name, mock.patch.dict(
+            deploy.os.environ, {deploy.DEPLOYER_STATE_ENV: name}
+        ):
+            cache = deploy.session_paths(ticket)["cache"]
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"zip")
+            attempts: dict[str, int] = {}
+            with mock.patch.object(deploy, "download_package") as download:
+                result = deploy.acquire_verified_package(ticket, manifest, attempts)
+            self.assertEqual(result, cache)
+            download.assert_not_called()
+            self.assertEqual(attempts["download"], 0)
+
+    def test_download_transport_is_retried_at_most_twice(self) -> None:
+        ticket, manifest = ticket_and_manifest()
+        with tempfile.TemporaryDirectory() as name, mock.patch.dict(
+            deploy.os.environ, {deploy.DEPLOYER_STATE_ENV: name}
+        ), mock.patch.object(
+            deploy, "download_package", side_effect=deploy.DeploymentError("stream disconnected")
+        ) as download:
+            with self.assertRaises(deploy.DeploymentError):
+                deploy.acquire_verified_package(ticket, manifest, {})
+            self.assertEqual(download.call_count, deploy.MAX_SAFE_RECOVERY_ATTEMPTS)
+
+    def test_windows_installer_consumes_build_logs_and_validates_one_path(self) -> None:
+        installer = (
+            ROOT.parents[1]
+            / "AI内容工作台部署包"
+            / "installer"
+            / "Install_AI_Content_Workbench.ps1"
+        ).read_text(encoding="utf-8-sig")
+        self.assertIn("& $buildScript -WebRoot $stageWebRoot | Out-Host", installer)
+        self.assertIn("$preparedCandidates.Count -ne 1", installer)
+        self.assertIn("返回了无效构建目录", installer)
+
+
+if __name__ == "__main__":
+    unittest.main()
