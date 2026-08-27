@@ -16,7 +16,6 @@ $ErrorActionPreference = "Stop"
 $EvidenceRoot = Join-Path $OutputRoot "evidence"
 $DownloadRoot = Join-Path $OutputRoot "downloads"
 $ExtractRoot = Join-Path $OutputRoot "packages"
-$GateRoot = [IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $EvidenceRoot, $DownloadRoot, $ExtractRoot | Out-Null
 
 function Assert-Sha256 {
@@ -65,12 +64,16 @@ function Expand-VerifiedPackage {
 }
 
 function Stop-GateProcesses {
-  $processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-    $_.CommandLine -and $_.CommandLine.IndexOf($GateRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
-    $_.ProcessId -ne $PID
-  })
-  foreach ($process in $processes) {
-    Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+  $listenerIds = @()
+  foreach ($line in @(& netstat.exe -ano -p tcp)) {
+    if ($line -match '^\s*TCP\s+\S+:(3000|4318)\s+\S+\s+LISTENING\s+(\d+)\s*$') {
+      $listenerIds += [int]$Matches[2]
+    }
+  }
+  foreach ($processId in @($listenerIds | Sort-Object -Unique)) {
+    if ($processId -ne $PID) {
+      Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+    }
   }
   Start-Sleep -Seconds 2
 }
@@ -116,19 +119,7 @@ function Assert-InstalledWorkbench {
     throw "$Label installation summary is missing."
   }
 
-  $webRoot = Join-Path $Workspace "系统文件_无需打开\tools\web-workbench"
-  $startScript = Join-Path $webRoot "service\windows\start-services.ps1"
-  $launcher = Start-Process -FilePath "powershell.exe" -ArgumentList @(
-    "-NoProfile",
-    "-ExecutionPolicy", "Bypass",
-    "-File", $startScript,
-    "-WebRoot", $webRoot,
-    "-WorkbenchRoot", $Workspace
-  ) -PassThru -WindowStyle Hidden
-  Start-Sleep -Seconds 3
-  if ($launcher.HasExited -and $launcher.ExitCode -ne 0) {
-    throw "$Label web-workbench start script failed with code $($launcher.ExitCode)."
-  }
+  Write-Host "Checking the web service started by the installer: $Label"
   Wait-Workbench
 }
 

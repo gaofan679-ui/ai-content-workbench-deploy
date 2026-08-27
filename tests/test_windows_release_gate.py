@@ -73,17 +73,15 @@ class WindowsReleaseGateTests(unittest.TestCase):
             gate_script,
         )
 
-    def test_web_server_is_launched_without_waiting_for_long_running_process(self) -> None:
+    def test_web_server_check_does_not_relaunch_or_scan_all_windows_processes(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
             encoding="utf-8"
         )
-        self.assertIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
-        self.assertIn("-PassThru -WindowStyle Hidden", gate_script)
+        self.assertIn("Checking the web service started by the installer", gate_script)
         self.assertIn("Wait-Workbench", gate_script)
-        self.assertNotIn(
-            "& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript",
-            gate_script,
-        )
+        self.assertIn("netstat.exe -ano -p tcp", gate_script)
+        self.assertNotIn("Get-CimInstance Win32_Process", gate_script)
+        self.assertNotIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
 
 
 if __name__ == "__main__":
