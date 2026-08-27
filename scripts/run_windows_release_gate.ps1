@@ -101,7 +101,7 @@ function Assert-InstalledWorkbench {
     (Join-Path $Workspace "03_完成全部配置.bat"),
     (Join-Path $Workspace "系统文件_无需打开\config\customer_config.env"),
     (Join-Path $Workspace "系统文件_无需打开\tools\web-workbench\dist\server\index.js"),
-    (Join-Path $Workspace "04_使用教程\docs\04_打开使用教程.html")
+    (Join-Path $Workspace "04_使用教程\04_打开使用教程.html")
   )
   foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {

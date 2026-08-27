@@ -85,6 +85,11 @@ class WindowsReleaseGateTests(unittest.TestCase):
         self.assertIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
         self.assertIn("Wait-Workbench", gate_script)
         self.assertIn("netstat.exe -ano -p tcp", gate_script)
+        self.assertIn(
+            'Join-Path $Workspace "04_使用教程\\04_打开使用教程.html"',
+            gate_script,
+        )
+        self.assertNotIn("04_使用教程\\docs\\04_打开使用教程.html", gate_script)
         self.assertNotIn("Get-CimInstance Win32_Process", gate_script)
 
 
