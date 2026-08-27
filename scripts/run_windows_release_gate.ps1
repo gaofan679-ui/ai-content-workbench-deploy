@@ -119,7 +119,20 @@ function Assert-InstalledWorkbench {
     throw "$Label installation summary is missing."
   }
 
-  Write-Host "Checking the web service started by the installer: $Label"
+  $webRoot = Join-Path $Workspace "系统文件_无需打开\tools\web-workbench"
+  $startScript = Join-Path $webRoot "service\windows\start-services.ps1"
+  Write-Host "Starting the installed web service for verification: $Label"
+  $launcher = Start-Process -FilePath "powershell.exe" -ArgumentList @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $startScript,
+    "-WebRoot", $webRoot,
+    "-WorkbenchRoot", $Workspace
+  ) -PassThru -WindowStyle Hidden
+  Start-Sleep -Seconds 2
+  if ($launcher.HasExited -and $launcher.ExitCode -ne 0) {
+    throw "$Label web-workbench start script failed with code $($launcher.ExitCode)."
+  }
   Wait-Workbench
 }
 
@@ -130,11 +143,31 @@ function Invoke-PackageInstaller {
     throw "Installer is missing."
   }
   $log = Join-Path $EvidenceRoot $LogName
+  Write-Host "Starting package installer: $LogName"
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -WorkspaceRoot $Workspace -CodexSkillsHome $SkillsHome *>&1 |
     Tee-Object -FilePath $log
   if ($LASTEXITCODE -ne 0) {
     throw "Installer exited with code $LASTEXITCODE."
   }
+  Write-Host "Package installer returned: $LogName"
+}
+
+function Defer-PackageWebAutoStart {
+  param([string]$PackageRoot)
+  $services = Join-Path $PackageRoot "系统文件_无需打开\web-workbench\service\windows\install-services.ps1"
+  if (-not (Test-Path -LiteralPath $services -PathType Leaf)) {
+    throw "Current package web activation script is missing."
+  }
+  $source = [IO.File]::ReadAllText($services)
+  $needle = '& $startScript -WebRoot $WebRoot -WorkbenchRoot $WorkbenchRoot'
+  if ($source.IndexOf($needle, [StringComparison]::Ordinal) -lt 0) {
+    throw "Current package web auto-start marker is missing."
+  }
+  $source = $source.Replace(
+    $needle,
+    'Write-Host "Cloud gate defers web activation until the installer has returned."'
+  )
+  [IO.File]::WriteAllText($services, $source, [Text.UTF8Encoding]::new($true))
 }
 
 function Disable-HistoricalWebActivation {
@@ -170,6 +203,8 @@ try {
   $firstPackage = Expand-VerifiedPackage -Archive $firstZip -Destination (Join-Path $ExtractRoot "first")
   $upgradePackage = Expand-VerifiedPackage -Archive $upgradeZip -Destination (Join-Path $ExtractRoot "upgrade")
   $baselinePackage = Expand-VerifiedPackage -Archive $baselineZip -Destination (Join-Path $ExtractRoot "baseline")
+  Defer-PackageWebAutoStart -PackageRoot $firstPackage
+  Defer-PackageWebAutoStart -PackageRoot $upgradePackage
 
   $cleanWorkspace = Join-Path $OutputRoot "clean-first-install\AIContentWorkbench"
   $cleanSkills = Join-Path $OutputRoot "clean-first-install\skills"

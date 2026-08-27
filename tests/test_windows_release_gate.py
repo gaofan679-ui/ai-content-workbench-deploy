@@ -73,15 +73,19 @@ class WindowsReleaseGateTests(unittest.TestCase):
             gate_script,
         )
 
-    def test_web_server_check_does_not_relaunch_or_scan_all_windows_processes(self) -> None:
+    def test_web_server_activation_is_deferred_then_verified_without_global_scan(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Checking the web service started by the installer", gate_script)
+        self.assertIn("function Defer-PackageWebAutoStart", gate_script)
+        self.assertIn("Defer-PackageWebAutoStart -PackageRoot $firstPackage", gate_script)
+        self.assertIn("Defer-PackageWebAutoStart -PackageRoot $upgradePackage", gate_script)
+        self.assertIn("Cloud gate defers web activation", gate_script)
+        self.assertIn("Starting the installed web service for verification", gate_script)
+        self.assertIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
         self.assertIn("Wait-Workbench", gate_script)
         self.assertIn("netstat.exe -ano -p tcp", gate_script)
         self.assertNotIn("Get-CimInstance Win32_Process", gate_script)
-        self.assertNotIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
 
 
 if __name__ == "__main__":
