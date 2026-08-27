@@ -39,7 +39,7 @@ jobs:
           node-version: "22"
 
       - name: Run clean install and historical upgrade
-        shell: powershell
+        shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:AICW_FIRST_INSTALL_URL) -or
               [string]::IsNullOrWhiteSpace($env:AICW_UPGRADE_URL) -or
