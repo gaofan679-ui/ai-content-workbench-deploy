@@ -118,9 +118,16 @@ function Assert-InstalledWorkbench {
 
   $webRoot = Join-Path $Workspace "系统文件_无需打开\tools\web-workbench"
   $startScript = Join-Path $webRoot "service\windows\start-services.ps1"
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript -WebRoot $webRoot -WorkbenchRoot $Workspace
-  if ($LASTEXITCODE -ne 0) {
-    throw "$Label web-workbench start script failed."
+  $launcher = Start-Process -FilePath "powershell.exe" -ArgumentList @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $startScript,
+    "-WebRoot", $webRoot,
+    "-WorkbenchRoot", $Workspace
+  ) -PassThru -WindowStyle Hidden
+  Start-Sleep -Seconds 3
+  if ($launcher.HasExited -and $launcher.ExitCode -ne 0) {
+    throw "$Label web-workbench start script failed with code $($launcher.ExitCode)."
   }
   Wait-Workbench
 }
