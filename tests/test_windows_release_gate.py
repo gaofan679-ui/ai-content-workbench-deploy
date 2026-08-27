@@ -62,6 +62,17 @@ class WindowsReleaseGateTests(unittest.TestCase):
                     package_sha256={"a" * 64},
                 )
 
+    def test_historical_baseline_uses_real_payload_without_obsolete_activation(self) -> None:
+        gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function Disable-HistoricalWebActivation", gate_script)
+        self.assertIn("Invoke-PackageInstaller -PackageRoot $baselinePackage", gate_script)
+        self.assertIn(
+            'historical_baseline_setup = "actual_v1.7.0_payload_installed_with_obsolete_service_activation_skipped"',
+            gate_script,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

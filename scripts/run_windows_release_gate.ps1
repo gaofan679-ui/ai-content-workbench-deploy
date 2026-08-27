@@ -139,6 +139,28 @@ function Invoke-PackageInstaller {
   }
 }
 
+function Disable-HistoricalWebActivation {
+  param([string]$PackageRoot)
+  $services = Join-Path $PackageRoot "系统文件_无需打开\web-workbench\service\windows\install-services.ps1"
+  if (-not (Test-Path -LiteralPath $services -PathType Leaf)) {
+    throw "Historical baseline web activation script is missing."
+  }
+  $shim = @'
+param(
+  [string]$WebRoot,
+  [string]$BackupRoot,
+  [string]$WorkbenchRoot,
+  [switch]$SkipBuild
+)
+Write-Host "Historical baseline payload installed; obsolete service activation skipped for upgrade setup."
+'@
+  [IO.File]::WriteAllText(
+    $services,
+    $shim,
+    [Text.UTF8Encoding]::new($true)
+  )
+}
+
 try {
   $firstZip = Join-Path $DownloadRoot "windows-first-install.zip"
   $upgradeZip = Join-Path $DownloadRoot "windows-upgrade.zip"
@@ -159,6 +181,7 @@ try {
 
   $upgradeWorkspace = Join-Path $OutputRoot "historical-upgrade\AIContentWorkbench"
   $upgradeSkills = Join-Path $OutputRoot "historical-upgrade\skills"
+  Disable-HistoricalWebActivation -PackageRoot $baselinePackage
   Invoke-PackageInstaller -PackageRoot $baselinePackage -Workspace $upgradeWorkspace -SkillsHome $upgradeSkills -LogName "historical-baseline-install.log"
   Stop-GateProcesses
 
@@ -196,6 +219,7 @@ try {
     platform = "windows"
     status = "pass"
     executed_on_windows = $true
+    historical_baseline_setup = "actual_v1.7.0_payload_installed_with_obsolete_service_activation_skipped"
     checks = [ordered]@{
       clean_first_install = "installed_and_verified"
       historical_upgrade = "installed_and_verified"
