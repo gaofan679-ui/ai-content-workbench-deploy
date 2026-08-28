@@ -2,23 +2,23 @@
   "schema_version": 1,
   "product_id": "ai-content-workbench",
   "channel": "pilot",
-  "updated_at": "2026-08-28T05:58:00+08:00",
-  "version": "1.8.0-rc.2p",
-  "release_tag": "workbench-v1.8.0-rc.2p",
-  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.8.0-rc.2p/CODEX_DEPLOYMENT.md",
+  "updated_at": "2026-08-29T03:30:00+08:00",
+  "version": "1.8.0-rc.2q",
+  "release_tag": "workbench-v1.8.0-rc.2q",
+  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@workbench-v1.8.0-rc.2q/CODEX_DEPLOYMENT.md",
   "manifests": {
     "macos": {
-      "first_install": "releases/v1.8.0-rc.2p/macos-first-install.json",
-      "incremental_upgrade": "releases/v1.8.0-rc.2p/macos-upgrade.json"
+      "first_install": "releases/v1.8.0-rc.2q/macos-first-install.json",
+      "incremental_upgrade": "releases/v1.8.0-rc.2q/macos-upgrade.json"
     },
     "windows": {
-      "first_install": "releases/v1.8.0-rc.2p/windows-first-install.json",
-      "incremental_upgrade": "releases/v1.8.0-rc.2p/windows-upgrade.json"
+      "first_install": "releases/v1.8.0-rc.2q/windows-first-install.json",
+      "incremental_upgrade": "releases/v1.8.0-rc.2q/windows-upgrade.json"
     }
   },
   "batch_release_allowed": false,
   "real_machine_validation": {
     "macos": "isolated_first_install_and_mixed_layout_upgrade_pass",
-    "windows": "github_clean_install_and_v1_7_historical_upgrade_pass"
+    "windows": "github_clean_install_v1_7_historical_upgrade_and_interrupted_recovery_pass"
   }
 }
