@@ -111,8 +111,14 @@ function Assert-InstalledWorkbench {
   $skillCount = @(Get-ChildItem -LiteralPath $SkillsHome -Directory | Where-Object {
     Test-Path -LiteralPath (Join-Path $_.FullName "SKILL.md") -PathType Leaf
   }).Count
-  if ($skillCount -ne 37) {
-    throw "$Label installed Skill count is $skillCount, expected 37."
+  if ($skillCount -ne 38) {
+    throw "$Label installed Skill count is $skillCount, expected 38."
+  }
+  $jewelrySkill = Join-Path $SkillsHome "xhs-jewelry-visual-remix\SKILL.md"
+  $tutorial = Join-Path $Workspace "04_使用教程\docs\00_START_HERE.html"
+  if (-not (Test-Path -LiteralPath $jewelrySkill -PathType Leaf) -or
+      -not (Test-Path -LiteralPath $tutorial -PathType Leaf)) {
+    throw "$Label is missing the jewelry workflow or current tutorial entry."
   }
   $summaries = @(Get-ChildItem -LiteralPath (Join-Path $Workspace "系统文件_无需打开\logs") -Filter "install_summary_*.txt" -File)
   if ($summaries.Count -lt 1) {
@@ -212,6 +218,20 @@ try {
   Assert-InstalledWorkbench -Workspace $cleanWorkspace -SkillsHome $cleanSkills -Label "clean first install"
   Stop-GateProcesses
 
+  $recoveryWorkspace = Join-Path $OutputRoot "interrupted-recovery\AIContentWorkbench"
+  $recoverySkills = Join-Path $OutputRoot "interrupted-recovery\skills"
+  $recoverySentinel = Join-Path $recoveryWorkspace "02_项目工作区\中断恢复验证\keep.txt"
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $recoverySentinel) | Out-Null
+  Set-Content -LiteralPath $recoverySentinel -Value "preserve-interrupted-install" -Encoding UTF8
+  New-Item -ItemType Directory -Force -Path (Join-Path $recoveryWorkspace "系统文件_无需打开\tools\web-workbench") | Out-Null
+  Set-Content -LiteralPath (Join-Path $recoveryWorkspace "系统文件_无需打开\tools\web-workbench\partial-install.marker") -Value "simulated interruption" -Encoding UTF8
+  Invoke-PackageInstaller -PackageRoot $upgradePackage -Workspace $recoveryWorkspace -SkillsHome $recoverySkills -LogName "interrupted-recovery.log"
+  if (-not (Test-Path -LiteralPath $recoverySentinel -PathType Leaf)) {
+    throw "Interrupted recovery removed the customer project sentinel."
+  }
+  Assert-InstalledWorkbench -Workspace $recoveryWorkspace -SkillsHome $recoverySkills -Label "interrupted recovery"
+  Stop-GateProcesses
+
   $upgradeWorkspace = Join-Path $OutputRoot "historical-upgrade\AIContentWorkbench"
   $upgradeSkills = Join-Path $OutputRoot "historical-upgrade\skills"
   Disable-HistoricalWebActivation -PackageRoot $baselinePackage
@@ -256,8 +276,9 @@ try {
     checks = [ordered]@{
       clean_first_install = "installed_and_verified"
       historical_upgrade = "installed_and_verified"
+      interrupted_recovery = "installed_and_verified"
       powershell_execution = "passed"
-      web_workbench_build = "passed"
+      web_workbench_prebuilt_runtime = "passed"
       web_workbench_launch = "passed"
       post_install_receipt = "passed"
     }

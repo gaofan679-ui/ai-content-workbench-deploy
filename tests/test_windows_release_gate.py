@@ -62,6 +62,19 @@ class WindowsReleaseGateTests(unittest.TestCase):
                     package_sha256={"a" * 64},
                 )
 
+    def test_missing_interrupted_recovery_blocks_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-gate.json"
+            report = self.report(["a" * 64])
+            report["checks"]["interrupted_recovery"] = "pending"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "interrupted_recovery"):
+                make_ticket.validate_windows_gate(
+                    path,
+                    version="1.8.0-rc.2o",
+                    package_sha256={"a" * 64},
+                )
+
     def test_historical_baseline_uses_real_payload_without_obsolete_activation(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
             encoding="utf-8"

@@ -19,14 +19,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "clean_first_install", "historical_upgrade", "powershell_execution",
-        "web_workbench_build", "web_workbench_launch", "post_install_receipt"
+        "clean_first_install", "historical_upgrade", "interrupted_recovery", "powershell_execution",
+        "web_workbench_prebuilt_runtime", "web_workbench_launch", "post_install_receipt"
       ],
       "properties": {
         "clean_first_install": {"const": "installed_and_verified"},
         "historical_upgrade": {"const": "installed_and_verified"},
+        "interrupted_recovery": {"const": "installed_and_verified"},
         "powershell_execution": {"const": "passed"},
-        "web_workbench_build": {"const": "passed"},
+        "web_workbench_prebuilt_runtime": {"const": "passed"},
         "web_workbench_launch": {"const": "passed"},
         "post_install_receipt": {"const": "passed"}
       }

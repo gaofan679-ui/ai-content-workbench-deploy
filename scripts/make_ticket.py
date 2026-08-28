@@ -18,8 +18,9 @@ SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 WINDOWS_GATE_CHECKS = {
     "clean_first_install": "installed_and_verified",
     "historical_upgrade": "installed_and_verified",
+    "interrupted_recovery": "installed_and_verified",
     "powershell_execution": "passed",
-    "web_workbench_build": "passed",
+    "web_workbench_prebuilt_runtime": "passed",
     "web_workbench_launch": "passed",
     "post_install_receipt": "passed",
 }

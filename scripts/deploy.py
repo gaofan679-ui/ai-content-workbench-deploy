@@ -1309,6 +1309,7 @@ def customer_summary(
     environment: dict[str, Any],
     *,
     phase: str,
+    module_readiness: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the same plain-language state used by the customer-facing receipt.
 
@@ -1371,13 +1372,70 @@ def customer_summary(
         completed[2] = "缺失的工作台能力已自动补齐"
     elif skills_recovery == "backup_existing_managed_residue_and_complete_first_install":
         completed[2] = "已有同名能力已备份，完整工作台已补齐"
+    ready_modules: list[str] = []
+    pending_modules: list[str] = []
+    if module_readiness:
+        for row in module_readiness.get("customer_modules") or []:
+            if row.get("status") == "ready":
+                ready_modules.append(str(row.get("label")))
+            elif row.get("status") in {"configuration_required", "user_confirmation_required"}:
+                pending_modules.append(str(row.get("label")))
+    conclusion = "本次安装或升级已完成，可以继续使用"
+    if pending_modules:
+        conclusion = "工作台已安装完成；部分功能完成账号配置后即可使用"
+        next_steps.insert(0, "按功能状态完成尚缺的账号配置或本人登录确认")
     return {
-        "当前结论": "本次安装或升级已完成，可以继续使用",
+        "当前结论": conclusion,
         "这次完成了什么": completed,
+        "已经可以使用": ready_modules,
+        "配置后可以使用": pending_modules,
         "原有内容是否保留": "已有项目、素材、成果、个人配置、个人工作流和历史目录均保留在原处，没有自动改名、移动或删除。",
         "还需要你做什么": next_steps,
         "从哪里继续": "打开工作台根目录中的“AI 内容工作台｜从这里开始”，再进入使用教程。",
     }
+
+
+def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, Any]:
+    tools_root = workbench / "系统文件_无需打开" / "tools" / "scripts" / "workbench-setup"
+    script = tools_root / "setup_status.py"
+    registry = tools_root / "customer_setup_registry.json"
+    if not script.is_file() or not registry.is_file():
+        raise DeploymentError("安装后缺少功能可用性检查器，不能判定客户功能已经可用。")
+    with tempfile.TemporaryDirectory(prefix="aicw-module-readiness-") as directory:
+        output = Path(directory) / "module_readiness.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--workbench", str(workbench),
+                "--skills-home", str(skills_home),
+                "--registry", str(registry),
+                "--json-output", str(output),
+            ],
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        if not output.is_file():
+            raise DeploymentError("安装后没有生成功能可用性报告。")
+        try:
+            report = json.loads(output.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise DeploymentError("安装后的功能可用性报告无法读取。") from exc
+    if int(report.get("schema_version") or 0) < 2:
+        raise DeploymentError("功能可用性检查器版本过旧，不能判定客户功能已经可用。")
+    modules = report.get("customer_modules")
+    if not isinstance(modules, list) or not modules:
+        raise DeploymentError("功能可用性报告没有覆盖客户网页模块。")
+    blocking = [
+        str(row.get("label") or row.get("id") or "未知功能")
+        for row in modules
+        if str(row.get("status") or "").startswith("blocked_")
+    ]
+    if result.returncode != 0 or blocking:
+        names = "、".join(blocking) if blocking else "基础运行环境"
+        raise DeploymentError(f"安装后功能验收未通过：{names}。已停止判定为安装成功。")
+    return report
 
 
 def sha256_file(path: Path) -> str:
@@ -1815,6 +1873,7 @@ def run_full_workbench_install(
     backup_root = next(iter(new_backups)) if len(new_backups) == 1 else None
     if install_mode == "incremental_upgrade" and backup_root is None:
         raise DeploymentError("安装完成但没有找到本次唯一升级备份。")
+    module_readiness = collect_module_readiness(workbench, skills_home)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
@@ -1843,11 +1902,13 @@ def run_full_workbench_install(
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
         "environment_preflight": environment,
+        "module_readiness": module_readiness,
         "customer_summary": customer_summary(
             manifest,
             {"install_mode": install_mode},
             environment,
             phase="apply",
+            module_readiness=module_readiness,
         ),
         "paid_calls": 0,
         "external_uploads": 0,
@@ -1898,6 +1959,7 @@ def run_first_install(
         message = (result.stderr or result.stdout or "首次安装器没有返回说明").strip()
         raise DeploymentError(f"首次安装器阻塞：{message[-1200:]}")
     checked = verify_first_install(package_dir / "codex_skills", skills_home, workbench)
+    module_readiness = collect_module_readiness(workbench, skills_home)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
@@ -1922,11 +1984,13 @@ def run_first_install(
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
         "environment_preflight": environment,
+        "module_readiness": module_readiness,
         "customer_summary": customer_summary(
             manifest,
             {"install_mode": "first_install"},
             environment,
             phase="apply",
+            module_readiness=module_readiness,
         ),
         "paid_calls": 0,
         "external_uploads": 0,

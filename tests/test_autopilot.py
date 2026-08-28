@@ -109,14 +109,16 @@ class AutopilotTests(unittest.TestCase):
                 deploy.acquire_verified_package(ticket, manifest, {})
             self.assertEqual(download.call_count, deploy.MAX_SAFE_RECOVERY_ATTEMPTS)
 
-    def test_windows_installer_consumes_build_logs_and_validates_one_path(self) -> None:
+    def test_windows_installer_uses_verified_prebuilt_runtime_and_validates_one_path(self) -> None:
         installer = (
             ROOT.parents[1]
             / "AI内容工作台部署包"
             / "installer"
             / "Install_AI_Content_Workbench.ps1"
         ).read_text(encoding="utf-8-sig")
-        self.assertIn("& $buildScript -WebRoot $stageWebRoot | Out-Host", installer)
+        self.assertIn("prebuilt\\windows-x64.tar.gz", installer)
+        self.assertIn("verify-prebuilt-runtime.mjs", installer)
+        self.assertNotIn("& $buildScript -WebRoot $stageWebRoot | Out-Host", installer)
         self.assertIn("$preparedCandidates.Count -ne 1", installer)
         self.assertIn("返回了无效构建目录", installer)
 

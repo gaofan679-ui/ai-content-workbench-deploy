@@ -99,6 +99,23 @@ class DeploymentTests(unittest.TestCase):
         )
         self.assertIn("自动补齐", summary["当前结论"])
         self.assertEqual(summary["还需要你做什么"][0], "明确回复“同意执行”")
+
+    def test_customer_summary_distinguishes_ready_and_configuration_pending_modules(self):
+        summary = deploy.customer_summary(
+            {"platform": "windows", "version": "1.8.0"},
+            {"install_mode": "incremental_upgrade"},
+            {"status": "ready", "optional_local_components": {}},
+            phase="apply",
+            module_readiness={
+                "customer_modules": [
+                    {"label": "网页工作台", "status": "ready"},
+                    {"label": "AI 口播", "status": "configuration_required"},
+                ]
+            },
+        )
+        self.assertEqual(summary["已经可以使用"], ["网页工作台"])
+        self.assertEqual(summary["配置后可以使用"], ["AI 口播"])
+        self.assertIn("部分功能", summary["当前结论"])
     def ticket(self) -> dict:
         now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         platform_name = deploy.platform_name()
