@@ -140,6 +140,32 @@ function Assert-InstalledWorkbench {
     throw "$Label web-workbench start script failed with code $($launcher.ExitCode)."
   }
   Wait-Workbench
+
+  $setupRoot = Join-Path $Workspace "系统文件_无需打开\tools\scripts\workbench-setup"
+  $setupStatus = Join-Path $setupRoot "setup_status.py"
+  $setupRegistry = Join-Path $setupRoot "customer_setup_registry.json"
+  $readinessOutput = Join-Path $EvidenceRoot ("module-readiness-" + ($Label -replace '[^A-Za-z0-9_-]', '-') + ".json")
+  if (-not (Test-Path -LiteralPath $setupStatus -PathType Leaf) -or
+      -not (Test-Path -LiteralPath $setupRegistry -PathType Leaf)) {
+    throw "$Label module-readiness checker is missing."
+  }
+  & python.exe $setupStatus `
+    --workbench $Workspace `
+    --skills-home $SkillsHome `
+    --registry $setupRegistry `
+    --json-output $readinessOutput | Out-Host
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $readinessOutput -PathType Leaf)) {
+    throw "$Label module-readiness checker failed."
+  }
+  $readiness = Get-Content -LiteralPath $readinessOutput -Raw -Encoding UTF8 | ConvertFrom-Json
+  $blocked = @($readiness.customer_modules | Where-Object { [string]$_.status -like 'blocked_*' })
+  if ($blocked.Count -gt 0) {
+    $blockedNames = ($blocked | ForEach-Object { [string]$_.label }) -join ', '
+    throw "$Label customer module readiness failed: $blockedNames"
+  }
+  if (@($readiness.customer_modules).Count -ne 6) {
+    throw "$Label customer module readiness covered $(@($readiness.customer_modules).Count) modules, expected 6."
+  }
 }
 
 function Invoke-PackageInstaller {
@@ -281,6 +307,7 @@ try {
       web_workbench_prebuilt_runtime = "passed"
       web_workbench_launch = "passed"
       post_install_receipt = "passed"
+      customer_module_readiness = "passed_six_modules_using_installed_tutorial_layout"
     }
     package_sha256 = @($FirstInstallSha256.ToLowerInvariant(), $UpgradeSha256.ToLowerInvariant())
   }
