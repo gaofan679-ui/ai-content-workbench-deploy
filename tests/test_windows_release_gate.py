@@ -105,6 +105,14 @@ class WindowsReleaseGateTests(unittest.TestCase):
         self.assertNotIn("04_使用教程\\docs\\04_打开使用教程.html", gate_script)
         self.assertNotIn("Get-CimInstance Win32_Process", gate_script)
 
+    def test_module_readiness_only_blocks_managed_module_failures(self) -> None:
+        gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("module-readiness checker produced no report", gate_script)
+        self.assertIn("customer module readiness failed", gate_script)
+        self.assertNotIn("$LASTEXITCODE -ne 0 -or -not", gate_script)
+
 
 if __name__ == "__main__":
     unittest.main()

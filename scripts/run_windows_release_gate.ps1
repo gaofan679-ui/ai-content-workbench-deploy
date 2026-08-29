@@ -154,8 +154,11 @@ function Assert-InstalledWorkbench {
     --skills-home $SkillsHome `
     --registry $setupRegistry `
     --json-output $readinessOutput | Out-Host
-  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $readinessOutput -PathType Leaf)) {
-    throw "$Label module-readiness checker failed."
+  # setup_status may return a non-zero code when optional base tools or
+  # customer-owned account configuration are still pending. The release gate
+  # must only block on missing managed module files, Skills or tutorials below.
+  if (-not (Test-Path -LiteralPath $readinessOutput -PathType Leaf)) {
+    throw "$Label module-readiness checker produced no report."
   }
   $readiness = Get-Content -LiteralPath $readinessOutput -Raw -Encoding UTF8 | ConvertFrom-Json
   $blocked = @($readiness.customer_modules | Where-Object { [string]$_.status -like 'blocked_*' })
