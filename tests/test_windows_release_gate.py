@@ -86,24 +86,25 @@ class WindowsReleaseGateTests(unittest.TestCase):
             gate_script,
         )
 
-    def test_web_server_activation_is_deferred_then_verified_without_global_scan(self) -> None:
+    def test_target_packages_use_the_unchanged_customer_deployment_path(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
             encoding="utf-8"
         )
-        self.assertIn("function Defer-PackageWebAutoStart", gate_script)
-        self.assertIn("Defer-PackageWebAutoStart -PackageRoot $firstPackage", gate_script)
-        self.assertIn("Defer-PackageWebAutoStart -PackageRoot $upgradePackage", gate_script)
-        self.assertIn("Cloud gate defers web activation", gate_script)
-        self.assertIn("Starting the installed web service for verification", gate_script)
-        self.assertIn('$launcher = Start-Process -FilePath "powershell.exe"', gate_script)
+        self.assertNotIn("function Defer-PackageWebAutoStart", gate_script)
+        self.assertNotIn("Cloud gate defers web activation", gate_script)
+        self.assertIn("function Invoke-CustomerDeployment", gate_script)
+        self.assertIn(".\\scripts\\deploy.py apply", gate_script)
+        self.assertIn("Invoke-CustomerDeployment -TicketPath $firstTicket", gate_script)
+        self.assertIn("Invoke-CustomerDeployment -TicketPath $upgradeTicket", gate_script)
+        self.assertIn("Invoke-CustomerDeployment -TicketPath $recoveryTicket", gate_script)
+        self.assertIn('target_package_execution = "unchanged_customer_deploy_py_apply_path"', gate_script)
         self.assertIn("Wait-Workbench", gate_script)
-        self.assertIn("netstat.exe -ano -p tcp", gate_script)
+        self.assertIn("installed_and_verified receipt is missing", gate_script)
         self.assertIn(
             'Join-Path $Workspace "04_使用教程\\04_打开使用教程.html"',
             gate_script,
         )
         self.assertNotIn("04_使用教程\\docs\\04_打开使用教程.html", gate_script)
-        self.assertNotIn("Get-CimInstance Win32_Process", gate_script)
 
     def test_module_readiness_only_blocks_managed_module_failures(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(

@@ -125,19 +125,13 @@ function Assert-InstalledWorkbench {
     throw "$Label installation summary is missing."
   }
 
-  $webRoot = Join-Path $Workspace "系统文件_无需打开\tools\web-workbench"
-  $startScript = Join-Path $webRoot "service\windows\start-services.ps1"
-  Write-Host "Starting the installed web service for verification: $Label"
-  $launcher = Start-Process -FilePath "powershell.exe" -ArgumentList @(
-    "-NoProfile",
-    "-ExecutionPolicy", "Bypass",
-    "-File", $startScript,
-    "-WebRoot", $webRoot,
-    "-WorkbenchRoot", $Workspace
-  ) -PassThru -WindowStyle Hidden
-  Start-Sleep -Seconds 2
-  if ($launcher.HasExited -and $launcher.ExitCode -ne 0) {
-    throw "$Label web-workbench start script failed with code $($launcher.ExitCode)."
+  $receipts = @(Get-ChildItem -LiteralPath (Join-Path $Workspace "系统文件_无需打开\deployment_receipts") -Filter "*.json" -File)
+  if ($receipts.Count -lt 1) {
+    throw "$Label installed_and_verified receipt is missing."
+  }
+  $latestReceipt = Get-Content -LiteralPath ($receipts | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+  if ([string]$latestReceipt.status -ne "installed_and_verified" -or [string]$latestReceipt.version -ne $TargetVersion) {
+    throw "$Label installed receipt identity is invalid."
   }
   Wait-Workbench
 
@@ -187,22 +181,78 @@ function Invoke-PackageInstaller {
   Write-Host "Package installer returned: $LogName"
 }
 
-function Defer-PackageWebAutoStart {
-  param([string]$PackageRoot)
-  $services = Join-Path $PackageRoot "系统文件_无需打开\web-workbench\service\windows\install-services.ps1"
-  if (-not (Test-Path -LiteralPath $services -PathType Leaf)) {
-    throw "Current package web activation script is missing."
-  }
-  $source = [IO.File]::ReadAllText($services)
-  $needle = '& $startScript -WebRoot $WebRoot -WorkbenchRoot $WorkbenchRoot'
-  if ($source.IndexOf($needle, [StringComparison]::Ordinal) -lt 0) {
-    throw "Current package web auto-start marker is missing."
-  }
-  $source = $source.Replace(
-    $needle,
-    'Write-Host "Cloud gate defers web activation until the installer has returned."'
+function New-ValidationTicket {
+  param(
+    [string]$Label,
+    [string]$InstallMode,
+    [string]$PackageUrl,
+    [string]$PackageSha256,
+    [long]$PackageSize,
+    [string]$PackageRoot
   )
-  [IO.File]::WriteAllText($services, $source, [Text.UTF8Encoding]::new($true))
+  $manifestPath = Join-Path $EvidenceRoot "$Label-manifest.json"
+  $ticketPath = Join-Path $EvidenceRoot "$Label-ticket.json"
+  $manifest = [ordered]@{
+    schema_version = 1
+    product_id = "ai-content-workbench"
+    module_id = if ($InstallMode -eq "first_install") { "workbench-full-first-install" } else { "workbench-full-cumulative-upgrade" }
+    version = $TargetVersion
+    release_tag = "workbench-v$TargetVersion"
+    release_id = "windows-real-customer-path-$TargetVersion"
+    channel = "validation"
+    status = "windows_real_customer_path_gate"
+    platform = "windows"
+    install_mode = $InstallMode
+    package_contract = "full_workbench_v1"
+    package_file_name = "$Label.zip"
+    package_root = $PackageRoot
+    package_subdir = "系统文件_无需打开"
+    package_size_bytes = $PackageSize
+    package_sha256 = $PackageSha256.ToLowerInvariant()
+    dependency_profile = "full_prebuilt_web_runtime"
+    required_tools = @("python_runtime", "node", "ffmpeg", "ffprobe", "curl")
+    environment_preflight_required = $true
+    installed_skill_count = 38
+  }
+  $now = [DateTimeOffset]::UtcNow
+  $ticket = [ordered]@{
+    schema_version = 1
+    ticket_id = "$TargetVersion-$Label"
+    customer_id = "github-windows-real-path-$Label"
+    issued_at = $now.ToString("o")
+    expires_at = $now.AddHours(4).ToString("o")
+    product_id = "ai-content-workbench"
+    version = $TargetVersion
+    platform = "windows"
+    install_mode = $InstallMode
+    manifest_url = $manifestPath
+    package_url = $PackageUrl
+    package_size_bytes = $PackageSize
+    package_sha256 = $PackageSha256.ToLowerInvariant()
+  }
+  $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+  $ticket | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ticketPath -Encoding UTF8
+  return $ticketPath
+}
+
+function Invoke-CustomerDeployment {
+  param([string]$TicketPath, [string]$Workspace, [string]$SkillsHome, [string]$LogName)
+  $log = Join-Path $EvidenceRoot $LogName
+  $previousStateRoot = $env:AICW_DEPLOYER_STATE_ROOT
+  $env:AICW_DEPLOYER_STATE_ROOT = Join-Path $OutputRoot ("deployer-state\" + [IO.Path]::GetFileNameWithoutExtension($TicketPath))
+  try {
+    Write-Host "Starting unchanged customer deployment path: $LogName"
+    & python.exe .\scripts\deploy.py apply `
+      --ticket $TicketPath `
+      --workbench $Workspace `
+      --skills-home $SkillsHome `
+      --confirm-write YES *>&1 | Tee-Object -FilePath $log
+    if ($LASTEXITCODE -ne 0) {
+      throw "Customer deployment path exited with code $LASTEXITCODE."
+    }
+  } finally {
+    $env:AICW_DEPLOYER_STATE_ROOT = $previousStateRoot
+  }
 }
 
 function Disable-HistoricalWebActivation {
@@ -238,23 +288,46 @@ try {
   $firstPackage = Expand-VerifiedPackage -Archive $firstZip -Destination (Join-Path $ExtractRoot "first")
   $upgradePackage = Expand-VerifiedPackage -Archive $upgradeZip -Destination (Join-Path $ExtractRoot "upgrade")
   $baselinePackage = Expand-VerifiedPackage -Archive $baselineZip -Destination (Join-Path $ExtractRoot "baseline")
-  Defer-PackageWebAutoStart -PackageRoot $firstPackage
-  Defer-PackageWebAutoStart -PackageRoot $upgradePackage
+
+  $firstTicket = New-ValidationTicket `
+    -Label "clean-first-install" `
+    -InstallMode "first_install" `
+    -PackageUrl $FirstInstallUrl `
+    -PackageSha256 $FirstInstallSha256 `
+    -PackageSize (Get-Item -LiteralPath $firstZip).Length `
+    -PackageRoot (Split-Path -Leaf $firstPackage)
+  $upgradeTicket = New-ValidationTicket `
+    -Label "historical-upgrade" `
+    -InstallMode "incremental_upgrade" `
+    -PackageUrl $UpgradeUrl `
+    -PackageSha256 $UpgradeSha256 `
+    -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
+    -PackageRoot (Split-Path -Leaf $upgradePackage)
+  $recoveryTicket = New-ValidationTicket `
+    -Label "interrupted-recovery" `
+    -InstallMode "incremental_upgrade" `
+    -PackageUrl $UpgradeUrl `
+    -PackageSha256 $UpgradeSha256 `
+    -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
+    -PackageRoot (Split-Path -Leaf $upgradePackage)
 
   $cleanWorkspace = Join-Path $OutputRoot "clean-first-install\AIContentWorkbench"
   $cleanSkills = Join-Path $OutputRoot "clean-first-install\skills"
-  Invoke-PackageInstaller -PackageRoot $firstPackage -Workspace $cleanWorkspace -SkillsHome $cleanSkills -LogName "clean-first-install.log"
+  Invoke-CustomerDeployment -TicketPath $firstTicket -Workspace $cleanWorkspace -SkillsHome $cleanSkills -LogName "clean-first-install.log"
   Assert-InstalledWorkbench -Workspace $cleanWorkspace -SkillsHome $cleanSkills -Label "clean first install"
   Stop-GateProcesses
 
   $recoveryWorkspace = Join-Path $OutputRoot "interrupted-recovery\AIContentWorkbench"
   $recoverySkills = Join-Path $OutputRoot "interrupted-recovery\skills"
+  Disable-HistoricalWebActivation -PackageRoot $baselinePackage
+  Invoke-PackageInstaller -PackageRoot $baselinePackage -Workspace $recoveryWorkspace -SkillsHome $recoverySkills -LogName "interrupted-recovery-baseline.log"
+  Stop-GateProcesses
   $recoverySentinel = Join-Path $recoveryWorkspace "02_项目工作区\中断恢复验证\keep.txt"
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $recoverySentinel) | Out-Null
   Set-Content -LiteralPath $recoverySentinel -Value "preserve-interrupted-install" -Encoding UTF8
   New-Item -ItemType Directory -Force -Path (Join-Path $recoveryWorkspace "系统文件_无需打开\tools\web-workbench") | Out-Null
   Set-Content -LiteralPath (Join-Path $recoveryWorkspace "系统文件_无需打开\tools\web-workbench\partial-install.marker") -Value "simulated interruption" -Encoding UTF8
-  Invoke-PackageInstaller -PackageRoot $upgradePackage -Workspace $recoveryWorkspace -SkillsHome $recoverySkills -LogName "interrupted-recovery.log"
+  Invoke-CustomerDeployment -TicketPath $recoveryTicket -Workspace $recoveryWorkspace -SkillsHome $recoverySkills -LogName "interrupted-recovery.log"
   if (-not (Test-Path -LiteralPath $recoverySentinel -PathType Leaf)) {
     throw "Interrupted recovery removed the customer project sentinel."
   }
@@ -263,7 +336,6 @@ try {
 
   $upgradeWorkspace = Join-Path $OutputRoot "historical-upgrade\AIContentWorkbench"
   $upgradeSkills = Join-Path $OutputRoot "historical-upgrade\skills"
-  Disable-HistoricalWebActivation -PackageRoot $baselinePackage
   Invoke-PackageInstaller -PackageRoot $baselinePackage -Workspace $upgradeWorkspace -SkillsHome $upgradeSkills -LogName "historical-baseline-install.log"
   Stop-GateProcesses
 
@@ -281,7 +353,7 @@ try {
     $before[$entry.Key] = (Get-FileHash -LiteralPath $entry.Value -Algorithm SHA256).Hash
   }
 
-  Invoke-PackageInstaller -PackageRoot $upgradePackage -Workspace $upgradeWorkspace -SkillsHome $upgradeSkills -LogName "historical-upgrade.log"
+  Invoke-CustomerDeployment -TicketPath $upgradeTicket -Workspace $upgradeWorkspace -SkillsHome $upgradeSkills -LogName "historical-upgrade.log"
   foreach ($entry in $sentinels.GetEnumerator()) {
     if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) {
       throw "Historical $($entry.Key) sentinel was removed."
@@ -302,6 +374,7 @@ try {
     status = "pass"
     executed_on_windows = $true
     historical_baseline_setup = "actual_v1.7.0_payload_installed_with_obsolete_service_activation_skipped"
+    target_package_execution = "unchanged_customer_deploy_py_apply_path"
     checks = [ordered]@{
       clean_first_install = "installed_and_verified"
       historical_upgrade = "installed_and_verified"

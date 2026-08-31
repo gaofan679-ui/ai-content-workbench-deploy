@@ -122,6 +122,27 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn("$preparedCandidates.Count -ne 1", installer)
         self.assertIn("返回了无效构建目录", installer)
 
+    def test_windows_service_activation_happens_after_installer_return(self) -> None:
+        install_services = (
+            ROOT.parents[1]
+            / "AI内容工作台部署包"
+            / "web-workbench"
+            / "service"
+            / "windows"
+            / "install-services.ps1"
+        ).read_text(encoding="utf-8-sig")
+        deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
+        self.assertNotIn("& $startScript -WebRoot $WebRoot -WorkbenchRoot $WorkbenchRoot", install_services)
+        self.assertIn("def activate_windows_web_services", deploy_source)
+        self.assertIn("post_installer_detached", deploy_source)
+        self.assertIn("stdout=stdout_handle", deploy_source)
+        self.assertIn("stderr=stderr_handle", deploy_source)
+        self.assertIn("service_activation = activate_windows_web_services", deploy_source)
+        self.assertLess(
+            deploy_source.index("if result.returncode != 0:"),
+            deploy_source.index("service_activation = activate_windows_web_services"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

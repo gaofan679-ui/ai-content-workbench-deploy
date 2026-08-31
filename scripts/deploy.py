@@ -1438,6 +1438,106 @@ def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, An
     return report
 
 
+def wait_for_windows_web_services(*, timeout_seconds: int = 90) -> dict[str, Any]:
+    """Wait until both installed local services answer after detached activation."""
+    urls = (
+        "http://127.0.0.1:4318/health",
+        "http://127.0.0.1:3000/",
+    )
+    deadline = time.monotonic() + timeout_seconds
+    last_error = "local services did not answer"
+    while time.monotonic() < deadline:
+        ready = True
+        for url in urls:
+            try:
+                request = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": "AIContentWorkbench-Deployer/1"},
+                )
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    if response.status != 200:
+                        ready = False
+                        last_error = f"{url} returned HTTP {response.status}"
+                        break
+            except (OSError, urllib.error.URLError) as exc:
+                ready = False
+                last_error = str(exc)
+                break
+        if ready:
+            return {
+                "status": "passed",
+                "runtime_url": urls[0],
+                "web_url": urls[1],
+                "activation_mode": "post_installer_detached",
+            }
+        time.sleep(0.8)
+    raise DeploymentError(f"网页工作台服务没有在限定时间内就绪：{last_error}")
+
+
+def activate_windows_web_services(
+    workbench: Path,
+    environment: dict[str, Any],
+) -> dict[str, Any]:
+    """Start long-running services after the captured installer has returned.
+
+    The launcher writes only to local log files and never inherits deployer's
+    captured stdout/stderr pipes.  This keeps the installer lifecycle finite
+    while leaving the Node services alive for post-install verification.
+    """
+    web_root = workbench / "系统文件_无需打开" / "tools" / "web-workbench"
+    start_script = web_root / "service" / "windows" / "start-services.ps1"
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if not start_script.is_file() or not powershell:
+        raise DeploymentError("安装后缺少网页工作台服务启动程序或 PowerShell。")
+
+    log_root = workbench / "系统文件_无需打开" / "logs" / "web-workbench"
+    log_root.mkdir(parents=True, exist_ok=True)
+    launcher_stdout = log_root / "deployment-launcher-out.log"
+    launcher_stderr = log_root / "deployment-launcher-error.log"
+    activation_environment = os.environ.copy()
+    node_record = ((environment.get("tools") or {}).get("node") or {})
+    node_path = str(node_record.get("path") or "").strip()
+    if node_path:
+        activation_environment["PATH"] = os.pathsep.join(
+            (str(Path(node_path).parent), activation_environment.get("PATH", ""))
+        )
+
+    creation_flags = 0
+    if os.name == "nt":
+        creation_flags = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | getattr(subprocess, "DETACHED_PROCESS", 0)
+        )
+    with launcher_stdout.open("ab") as stdout_handle, launcher_stderr.open("ab") as stderr_handle:
+        process = subprocess.Popen(
+            [
+                powershell,
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", str(start_script),
+                "-WebRoot", str(web_root),
+                "-WorkbenchRoot", str(workbench),
+            ],
+            cwd=web_root,
+            env=activation_environment,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            close_fds=True,
+            creationflags=creation_flags,
+        )
+        try:
+            return_code = process.wait(timeout=30)
+        except subprocess.TimeoutExpired as exc:
+            process.terminate()
+            raise DeploymentError("网页工作台服务启动程序没有按时返回，已安全停止验收。") from exc
+    if return_code != 0:
+        raise DeploymentError(
+            "网页工作台服务启动失败；详细记录已保存在工作台本地日志中。"
+        )
+    return wait_for_windows_web_services()
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -1873,6 +1973,11 @@ def run_full_workbench_install(
     backup_root = next(iter(new_backups)) if len(new_backups) == 1 else None
     if install_mode == "incremental_upgrade" and backup_root is None:
         raise DeploymentError("安装完成但没有找到本次唯一升级备份。")
+    service_activation: dict[str, Any]
+    if manifest["platform"] == "windows":
+        service_activation = activate_windows_web_services(workbench, environment)
+    else:
+        service_activation = {"status": "managed_by_installer", "activation_mode": "platform_native"}
     module_readiness = collect_module_readiness(workbench, skills_home)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
@@ -1902,6 +2007,7 @@ def run_full_workbench_install(
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
         "environment_preflight": environment,
+        "service_activation": service_activation,
         "module_readiness": module_readiness,
         "customer_summary": customer_summary(
             manifest,
