@@ -143,6 +143,11 @@ class AutopilotTests(unittest.TestCase):
             deploy_source.index("service_activation = activate_windows_web_services"),
         )
 
+    def test_fresh_install_accepts_a_not_yet_created_explicit_skill_root(self) -> None:
+        deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
+        self.assertIn('if mode == "incremental_upgrade" and not path.is_dir():', deploy_source)
+        self.assertIn('resolve_skills_home(skills_arg, str(ticket["install_mode"]))', deploy_source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -660,10 +660,10 @@ def resolve_workbench(explicit: str | None, mode: str) -> Path:
     return candidates[0]
 
 
-def resolve_skills_home(explicit: str | None) -> Path:
+def resolve_skills_home(explicit: str | None, mode: str) -> Path:
     if explicit:
         path = Path(explicit).expanduser().resolve()
-        if not path.is_dir():
+        if mode == "incremental_upgrade" and not path.is_dir():
             raise DeploymentError("指定的 Skill 目录不存在。")
         return path
     if os.environ.get("CODEX_SKILLS_HOME"):
@@ -940,7 +940,7 @@ def normalize_ticket_for_host(
         context = {
             "install_mode": ticket["install_mode"],
             "workbench": str(resolve_workbench(workbench_arg, str(ticket["install_mode"]))),
-            "skills_home": str(resolve_skills_home(skills_arg)),
+            "skills_home": str(resolve_skills_home(skills_arg, str(ticket["install_mode"]))),
             "selection": "legacy_ticket_explicit_mode",
             "write_performed": False,
         }
