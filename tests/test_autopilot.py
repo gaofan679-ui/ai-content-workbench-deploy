@@ -157,6 +157,16 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn('Microsoft/WinGet/Packages', deploy_source)
         self.assertIn('recursive=True', deploy_source)
 
+    def test_windows_installer_hashing_does_not_depend_on_powershell_modules(self) -> None:
+        installer = (
+            ROOT.parents[1]
+            / "AI内容工作台部署包"
+            / "installer"
+            / "Install_AI_Content_Workbench.ps1"
+        ).read_text(encoding="utf-8-sig")
+        self.assertIn("function Get-Sha256Hex", installer)
+        self.assertNotIn("Get-FileHash", installer)
+
 
 if __name__ == "__main__":
     unittest.main()
