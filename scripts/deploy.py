@@ -1413,6 +1413,8 @@ def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, An
                 "--json-output", str(output),
             ],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             timeout=30,
         )
@@ -1935,6 +1937,8 @@ def run_full_workbench_install(
             ["bash", str(installer)],
             input=f"{workbench}\n{skills_home}\nYES\n",
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             env=installer_environment,
         )
@@ -1950,6 +1954,8 @@ def run_full_workbench_install(
                 "-ValidatedLayout", validated_layout,
             ],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
         )
     if result.returncode != 0:
@@ -2046,6 +2052,8 @@ def run_first_install(
             ["bash", str(installer)],
             input=f"{workbench}\n{skills_home}\nYES\n",
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
         )
     else:
@@ -2059,6 +2067,8 @@ def run_first_install(
                 "-WorkspaceRoot", str(workbench), "-CodexSkillsHome", str(skills_home),
             ],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
         )
     if result.returncode != 0:

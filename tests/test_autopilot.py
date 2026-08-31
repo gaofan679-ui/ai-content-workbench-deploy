@@ -148,6 +148,10 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn('if mode == "incremental_upgrade" and not path.is_dir():', deploy_source)
         self.assertIn('resolve_skills_home(skills_arg, str(ticket["install_mode"]))', deploy_source)
 
+    def test_installer_capture_uses_explicit_utf8_decoding(self) -> None:
+        deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
+        self.assertGreaterEqual(deploy_source.count('encoding="utf-8",\n            errors="replace",'), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
