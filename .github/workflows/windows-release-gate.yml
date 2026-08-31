@@ -29,7 +29,10 @@ jobs:
     timeout-minutes: 90
     env:
       AICW_FIRST_INSTALL_URL: ${{ secrets.AICW_WINDOWS_FIRST_INSTALL_URL }}
+      AICW_FIRST_INSTALL_TICKET_URL: ${{ secrets.AICW_WINDOWS_FIRST_TICKET_URL }}
       AICW_UPGRADE_URL: ${{ secrets.AICW_WINDOWS_UPGRADE_URL }}
+      AICW_UPGRADE_TICKET_URL: ${{ secrets.AICW_WINDOWS_UPGRADE_TICKET_URL }}
+      AICW_RECOVERY_TICKET_URL: ${{ secrets.AICW_WINDOWS_RECOVERY_TICKET_URL }}
       AICW_BASELINE_URL: ${{ secrets.AICW_WINDOWS_BASELINE_URL }}
     steps:
       - uses: actions/checkout@v4
@@ -42,15 +45,21 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:AICW_FIRST_INSTALL_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_FIRST_INSTALL_TICKET_URL) -or
               [string]::IsNullOrWhiteSpace($env:AICW_UPGRADE_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_UPGRADE_TICKET_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_RECOVERY_TICKET_URL) -or
               [string]::IsNullOrWhiteSpace($env:AICW_BASELINE_URL)) {
             throw "Windows gate package secrets are not configured."
           }
           & .\scripts\run_windows_release_gate.ps1 `
             -TargetVersion '${{ inputs.target_version }}' `
             -FirstInstallUrl $env:AICW_FIRST_INSTALL_URL `
+            -FirstInstallTicketUrl $env:AICW_FIRST_INSTALL_TICKET_URL `
             -FirstInstallSha256 '${{ inputs.first_install_sha256 }}' `
             -UpgradeUrl $env:AICW_UPGRADE_URL `
+            -UpgradeTicketUrl $env:AICW_UPGRADE_TICKET_URL `
+            -RecoveryTicketUrl $env:AICW_RECOVERY_TICKET_URL `
             -UpgradeSha256 '${{ inputs.upgrade_sha256 }}' `
             -BaselineUrl $env:AICW_BASELINE_URL `
             -BaselineSha256 '${{ inputs.baseline_sha256 }}' `

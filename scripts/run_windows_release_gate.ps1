@@ -1,8 +1,11 @@
 param(
   [Parameter(Mandatory = $true)][string]$TargetVersion,
   [Parameter(Mandatory = $true)][string]$FirstInstallUrl,
+  [Parameter(Mandatory = $true)][string]$FirstInstallTicketUrl,
   [Parameter(Mandatory = $true)][string]$FirstInstallSha256,
   [Parameter(Mandatory = $true)][string]$UpgradeUrl,
+  [Parameter(Mandatory = $true)][string]$UpgradeTicketUrl,
+  [Parameter(Mandatory = $true)][string]$RecoveryTicketUrl,
   [Parameter(Mandatory = $true)][string]$UpgradeSha256,
   [Parameter(Mandatory = $true)][string]$BaselineUrl,
   [Parameter(Mandatory = $true)][string]$BaselineSha256,
@@ -290,30 +293,9 @@ try {
   $upgradePackage = Expand-VerifiedPackage -Archive $upgradeZip -Destination (Join-Path $ExtractRoot "upgrade")
   $baselinePackage = Expand-VerifiedPackage -Archive $baselineZip -Destination (Join-Path $ExtractRoot "baseline")
 
-  $firstTicket = New-ValidationTicket `
-    -Label "clean-first-install" `
-    -InstallMode "first_install" `
-    -PackageUrl $FirstInstallUrl `
-    -PackageSha256 $FirstInstallSha256 `
-    -PackageSize (Get-Item -LiteralPath $firstZip).Length `
-    -PackageRoot (Split-Path -Leaf $firstPackage) `
-    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-first-install.json"
-  $upgradeTicket = New-ValidationTicket `
-    -Label "historical-upgrade" `
-    -InstallMode "incremental_upgrade" `
-    -PackageUrl $UpgradeUrl `
-    -PackageSha256 $UpgradeSha256 `
-    -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
-    -PackageRoot (Split-Path -Leaf $upgradePackage) `
-    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-upgrade.json"
-  $recoveryTicket = New-ValidationTicket `
-    -Label "interrupted-recovery" `
-    -InstallMode "incremental_upgrade" `
-    -PackageUrl $UpgradeUrl `
-    -PackageSha256 $UpgradeSha256 `
-    -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
-    -PackageRoot (Split-Path -Leaf $upgradePackage) `
-    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-upgrade.json"
+  $firstTicket = $FirstInstallTicketUrl
+  $upgradeTicket = $UpgradeTicketUrl
+  $recoveryTicket = $RecoveryTicketUrl
 
   $cleanWorkspace = Join-Path $OutputRoot "clean-first-install\AIContentWorkbench"
   $cleanSkills = Join-Path $OutputRoot "clean-first-install\skills"
