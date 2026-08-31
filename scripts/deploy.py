@@ -1267,9 +1267,11 @@ def bootstrap_missing_dependencies(manifest: dict[str, Any], environment: dict[s
     refresh_process_path()
     after = environment_report(manifest)
     if after["status"] != "ready":
+        unresolved = ",".join(str(item) for item in after.get("missing_required") or [])
         raise DeploymentError(
             "基础环境已尝试自动补齐，但复查仍未通过；没有继续安装工作台。"
             "请确认系统权限提示已允许，并重新发送部署指令。"
+            f" unresolved_tools={unresolved or 'unknown'}"
         )
     return {
         "status": "passed",

@@ -252,6 +252,10 @@ function Invoke-CustomerDeployment {
       --skills-home $SkillsHome `
       --confirm-write YES *>&1 | Tee-Object -FilePath $log
     if ($LASTEXITCODE -ne 0) {
+      $stateEvidence = Join-Path $EvidenceRoot ($LogName + "-deployer-state")
+      if (Test-Path -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -PathType Container) {
+        Copy-Item -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -Destination $stateEvidence -Recurse -Force
+      }
       throw "Customer deployment path exited with code $LASTEXITCODE."
     }
   } finally {
