@@ -188,7 +188,8 @@ function New-ValidationTicket {
     [string]$PackageUrl,
     [string]$PackageSha256,
     [long]$PackageSize,
-    [string]$PackageRoot
+    [string]$PackageRoot,
+    [string]$ManifestUrl
   )
   $manifestPath = Join-Path $EvidenceRoot "$Label-manifest.json"
   $ticketPath = Join-Path $EvidenceRoot "$Label-ticket.json"
@@ -225,7 +226,7 @@ function New-ValidationTicket {
     version = $TargetVersion
     platform = "windows"
     install_mode = $InstallMode
-    manifest_url = $manifestPath
+    manifest_url = $ManifestUrl
     package_url = $PackageUrl
     package_size_bytes = $PackageSize
     package_sha256 = $PackageSha256.ToLowerInvariant()
@@ -295,21 +296,24 @@ try {
     -PackageUrl $FirstInstallUrl `
     -PackageSha256 $FirstInstallSha256 `
     -PackageSize (Get-Item -LiteralPath $firstZip).Length `
-    -PackageRoot (Split-Path -Leaf $firstPackage)
+    -PackageRoot (Split-Path -Leaf $firstPackage) `
+    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-first-install.json"
   $upgradeTicket = New-ValidationTicket `
     -Label "historical-upgrade" `
     -InstallMode "incremental_upgrade" `
     -PackageUrl $UpgradeUrl `
     -PackageSha256 $UpgradeSha256 `
     -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
-    -PackageRoot (Split-Path -Leaf $upgradePackage)
+    -PackageRoot (Split-Path -Leaf $upgradePackage) `
+    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-upgrade.json"
   $recoveryTicket = New-ValidationTicket `
     -Label "interrupted-recovery" `
     -InstallMode "incremental_upgrade" `
     -PackageUrl $UpgradeUrl `
     -PackageSha256 $UpgradeSha256 `
     -PackageSize (Get-Item -LiteralPath $upgradeZip).Length `
-    -PackageRoot (Split-Path -Leaf $upgradePackage)
+    -PackageRoot (Split-Path -Leaf $upgradePackage) `
+    -ManifestUrl "https://raw.githubusercontent.com/gaofan679-ui/ai-content-workbench-deploy/main/releases/v$TargetVersion/windows-upgrade.json"
 
   $cleanWorkspace = Join-Path $OutputRoot "clean-first-install\AIContentWorkbench"
   $cleanSkills = Join-Path $OutputRoot "clean-first-install\skills"
