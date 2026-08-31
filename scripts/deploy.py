@@ -1090,9 +1090,21 @@ def known_tool_paths(name: str) -> list[Path]:
             roots.extend(
                 Path(item) for item in glob.glob(str(Path(local) / "Programs/Python/Python*/python.exe"))
             )
+        if local:
+            package_root = Path(local) / "Microsoft/WinGet/Packages"
+            for executable in names:
+                roots.extend(
+                    Path(item)
+                    for item in glob.glob(
+                        str(package_root / "**" / executable),
+                        recursive=True,
+                    )
+                )
     else:
         roots.extend(Path(item) for item in ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"))
-    return [root / executable for root in roots for executable in names]
+    direct_files = [root for root in roots if root.is_file()]
+    directories = [root for root in roots if not root.is_file()]
+    return direct_files + [root / executable for root in directories for executable in names]
 
 
 def resolve_required_tool(tool_id: str) -> dict[str, Any]:

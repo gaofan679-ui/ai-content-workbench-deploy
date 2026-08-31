@@ -152,6 +152,11 @@ class AutopilotTests(unittest.TestCase):
         deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
         self.assertGreaterEqual(deploy_source.count('encoding="utf-8",\n            errors="replace",'), 4)
 
+    def test_winget_package_install_location_is_discovered_after_bootstrap(self) -> None:
+        deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
+        self.assertIn('Microsoft/WinGet/Packages', deploy_source)
+        self.assertIn('recursive=True', deploy_source)
+
 
 if __name__ == "__main__":
     unittest.main()
