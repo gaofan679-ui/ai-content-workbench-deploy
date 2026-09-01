@@ -1496,27 +1496,32 @@ def activate_windows_web_services(
 ) -> dict[str, Any]:
     """Start long-running services after the captured installer has returned.
 
-    The launcher writes only to local log files and never inherits deployer's
-    captured stdout/stderr pipes.  This keeps the installer lifecycle finite
-    while leaving the Node services alive for post-install verification.
+    Launch Node directly instead of nesting ``Start-Process`` under a detached
+    PowerShell process.  Both services write only to local log files and never
+    inherit deployer's captured stdout/stderr pipes.
     """
     web_root = workbench / "系统文件_无需打开" / "tools" / "web-workbench"
     start_script = web_root / "service" / "windows" / "start-services.ps1"
-    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
-    if not start_script.is_file() or not powershell:
-        raise DeploymentError("安装后缺少网页工作台服务启动程序或 PowerShell。")
+    runtime_entry = web_root / "runtime" / "server.mjs"
+    web_entry = web_root / "node_modules" / "vinext" / "dist" / "cli.js"
+    if not start_script.is_file() or not runtime_entry.is_file() or not web_entry.is_file():
+        raise DeploymentError("安装后缺少网页工作台服务启动文件。")
 
     log_root = workbench / "系统文件_无需打开" / "logs" / "web-workbench"
     log_root.mkdir(parents=True, exist_ok=True)
-    launcher_stdout = log_root / "deployment-launcher-out.log"
-    launcher_stderr = log_root / "deployment-launcher-error.log"
     activation_environment = os.environ.copy()
+    activation_environment["AI_WORKBENCH_HOME"] = str(workbench)
     node_record = ((environment.get("tools") or {}).get("node") or {})
     node_path = str(node_record.get("path") or "").strip()
-    if node_path:
-        activation_environment["PATH"] = os.pathsep.join(
-            (str(Path(node_path).parent), activation_environment.get("PATH", ""))
-        )
+    node_executable = Path(node_path) if node_path else None
+    if node_executable is None or not node_executable.is_file():
+        discovered = shutil.which("node.exe") or shutil.which("node")
+        node_executable = Path(discovered) if discovered else None
+    if node_executable is None or not node_executable.is_file():
+        raise DeploymentError("安装后未找到可执行的 Node.js，无法启动网页工作台。")
+    activation_environment["PATH"] = os.pathsep.join(
+        (str(node_executable.parent), activation_environment.get("PATH", ""))
+    )
 
     creation_flags = 0
     if os.name == "nt":
@@ -1524,34 +1529,59 @@ def activate_windows_web_services(
             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             | getattr(subprocess, "DETACHED_PROCESS", 0)
         )
-    with launcher_stdout.open("ab") as stdout_handle, launcher_stderr.open("ab") as stderr_handle:
-        process = subprocess.Popen(
-            [
-                powershell,
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", str(start_script),
-                "-WebRoot", str(web_root),
-                "-WorkbenchRoot", str(workbench),
-            ],
-            cwd=web_root,
-            env=activation_environment,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-            close_fds=True,
-            creationflags=creation_flags,
-        )
+    specifications = (
+        (
+            "runtime",
+            [str(node_executable), str(runtime_entry)],
+            log_root / "runtime-out.log",
+            log_root / "runtime-error.log",
+        ),
+        (
+            "web",
+            [str(node_executable), str(web_entry), "start", "--host", "127.0.0.1", "--port", "3000"],
+            log_root / "web-out.log",
+            log_root / "web-error.log",
+        ),
+    )
+    processes: list[tuple[str, subprocess.Popen[bytes], Path]] = []
+    for label, command, stdout_path, stderr_path in specifications:
+        with stdout_path.open("ab") as stdout_handle, stderr_path.open("ab") as stderr_handle:
+            process = subprocess.Popen(
+                command,
+                cwd=web_root,
+                env=activation_environment,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+                close_fds=True,
+                creationflags=creation_flags,
+            )
+        processes.append((label, process, stderr_path))
+
+    time.sleep(1.2)
+    early_failures = []
+    for label, process, stderr_path in processes:
+        return_code = process.poll()
+        if return_code is None:
+            continue
+        detail = ""
         try:
-            return_code = process.wait(timeout=30)
-        except subprocess.TimeoutExpired as exc:
-            process.terminate()
-            raise DeploymentError("网页工作台服务启动程序没有按时返回，已安全停止验收。") from exc
-    if return_code != 0:
+            detail = stderr_path.read_text(encoding="utf-8", errors="replace")[-800:].strip()
+        except OSError:
+            pass
+        early_failures.append(f"{label} exited {return_code}: {detail}".strip())
+    if early_failures:
+        for _, process, _ in processes:
+            if process.poll() is None:
+                process.terminate()
         raise DeploymentError(
-            "网页工作台服务启动失败；详细记录已保存在工作台本地日志中。"
+            "网页工作台服务启动后立即退出：" + " | ".join(early_failures)
         )
-    return wait_for_windows_web_services()
+
+    report = wait_for_windows_web_services()
+    report["activation_mode"] = "post_installer_direct_detached_node"
+    report["process_ids"] = [process.pid for _, process, _ in processes]
+    return report
 
 
 def sha256_file(path: Path) -> str:
