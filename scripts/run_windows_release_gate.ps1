@@ -256,6 +256,21 @@ function Invoke-CustomerDeployment {
       if (Test-Path -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -PathType Container) {
         Copy-Item -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -Destination $stateEvidence -Recurse -Force
       }
+      $serviceLogRoot = Join-Path $Workspace "系统文件_无需打开\logs\web-workbench"
+      $serviceEvidence = Join-Path $EvidenceRoot ($LogName + "-web-service-logs")
+      if (Test-Path -LiteralPath $serviceLogRoot -PathType Container) {
+        Copy-Item -LiteralPath $serviceLogRoot -Destination $serviceEvidence -Recurse -Force
+      }
+      Get-CimInstance Win32_Process |
+        Where-Object { $_.Name -match '^node(\.exe)?$' -or $_.Name -match '^powershell(\.exe)?$' } |
+        Select-Object Name, ProcessId, ParentProcessId, CommandLine |
+        Format-List |
+        Out-File -LiteralPath (Join-Path $EvidenceRoot ($LogName + "-processes.txt")) -Encoding utf8
+      Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.LocalPort -in @(3000, 4318) } |
+        Select-Object LocalAddress, LocalPort, OwningProcess |
+        Format-Table -AutoSize |
+        Out-File -LiteralPath (Join-Path $EvidenceRoot ($LogName + "-listeners.txt")) -Encoding utf8
       throw "Customer deployment path exited with code $LASTEXITCODE."
     }
   } finally {
