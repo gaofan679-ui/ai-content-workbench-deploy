@@ -45,6 +45,12 @@ def ticket_and_manifest() -> tuple[dict, dict]:
 
 
 class AutopilotTests(unittest.TestCase):
+    def canonical_source_text(self, relative_path: str) -> str:
+        path = ROOT.parents[1] / "AI内容工作台部署包" / relative_path
+        if not path.is_file():
+            self.skipTest("canonical workbench source is not part of the public deployment repository")
+        return path.read_text(encoding="utf-8-sig")
+
     def test_rc2n_path_contamination_is_a_package_defect_not_a_retry(self) -> None:
         decision = deploy.classify_deployment_failure(
             "安装器把构建日志误作路径，随后没有返回唯一构建目录",
@@ -110,12 +116,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(download.call_count, deploy.MAX_SAFE_RECOVERY_ATTEMPTS)
 
     def test_windows_installer_uses_verified_prebuilt_runtime_and_validates_one_path(self) -> None:
-        installer = (
-            ROOT.parents[1]
-            / "AI内容工作台部署包"
-            / "installer"
-            / "Install_AI_Content_Workbench.ps1"
-        ).read_text(encoding="utf-8-sig")
+        installer = self.canonical_source_text("installer/Install_AI_Content_Workbench.ps1")
         self.assertIn("prebuilt\\windows-x64.tar.gz", installer)
         self.assertIn("verify-prebuilt-runtime.mjs", installer)
         self.assertNotIn("& $buildScript -WebRoot $stageWebRoot | Out-Host", installer)
@@ -123,14 +124,9 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn("返回了无效构建目录", installer)
 
     def test_windows_service_activation_happens_after_installer_return(self) -> None:
-        install_services = (
-            ROOT.parents[1]
-            / "AI内容工作台部署包"
-            / "web-workbench"
-            / "service"
-            / "windows"
-            / "install-services.ps1"
-        ).read_text(encoding="utf-8-sig")
+        install_services = self.canonical_source_text(
+            "web-workbench/service/windows/install-services.ps1"
+        )
         deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
         self.assertNotIn("& $startScript -WebRoot $WebRoot -WorkbenchRoot $WorkbenchRoot", install_services)
         self.assertIn("def activate_windows_web_services", deploy_source)
@@ -158,12 +154,7 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn('recursive=True', deploy_source)
 
     def test_windows_installer_hashing_does_not_depend_on_powershell_modules(self) -> None:
-        installer = (
-            ROOT.parents[1]
-            / "AI内容工作台部署包"
-            / "installer"
-            / "Install_AI_Content_Workbench.ps1"
-        ).read_text(encoding="utf-8-sig")
+        installer = self.canonical_source_text("installer/Install_AI_Content_Workbench.ps1")
         self.assertIn("function Get-Sha256Hex", installer)
         self.assertNotIn("Get-FileHash", installer)
 
