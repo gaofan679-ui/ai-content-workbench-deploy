@@ -13,6 +13,11 @@ import sys
 import uuid
 import urllib.parse
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+from deploy import DeploymentError, validate_manifest
+
 
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 WINDOWS_GATE_CHECKS = {
@@ -109,6 +114,17 @@ def main() -> int:
         if not args.allow_local_test:
             if urllib.parse.urlsplit(package_url).scheme != "https" or urllib.parse.urlsplit(manifest_url).scheme != "https":
                 return fail("正式票据的客户包和版本清单地址必须使用 HTTPS。")
+        manifest_ticket_contract = {
+            "version": manifest.get("version"),
+            "platform": key[0],
+            "install_mode": key[1],
+            "package_size_bytes": manifest.get("package_size_bytes"),
+            "package_sha256": sha,
+        }
+        try:
+            validate_manifest(manifest, manifest_ticket_contract)
+        except DeploymentError as exc:
+            return fail(f"版本清单不能被当前部署器安装：{exc}")
         artifacts.append(
             {
                 "platform": key[0],

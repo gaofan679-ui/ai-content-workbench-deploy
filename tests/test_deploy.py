@@ -177,6 +177,49 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(deploy.DeploymentError):
             deploy.validate_manifest(manifest, ticket)
 
+    def test_verified_internal_pilot_manifest_is_installable(self) -> None:
+        ticket = self.ticket()
+        manifest = {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "module_id": "workbench-full-cumulative-upgrade",
+            "version": ticket["version"],
+            "release_tag": "workbench-test",
+            "release_id": "release-test",
+            "channel": "pilot",
+            "status": "verified_internal_pilot_not_batch_release",
+            "platform": ticket["platform"],
+            "install_mode": ticket["install_mode"],
+            "package_file_name": "test.zip",
+            "package_root": "test",
+            "package_subdir": "系统文件_无需打开",
+            "package_size_bytes": ticket["package_size_bytes"],
+            "package_sha256": ticket["package_sha256"],
+        }
+        deploy.validate_manifest(manifest, ticket)
+
+    def test_unknown_pilot_manifest_status_is_blocked(self) -> None:
+        ticket = self.ticket()
+        manifest = {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "module_id": "workbench-full-cumulative-upgrade",
+            "version": ticket["version"],
+            "release_tag": "workbench-test",
+            "release_id": "release-test",
+            "channel": "pilot",
+            "status": "new_unregistered_status",
+            "platform": ticket["platform"],
+            "install_mode": ticket["install_mode"],
+            "package_file_name": "test.zip",
+            "package_root": "test",
+            "package_subdir": "系统文件_无需打开",
+            "package_size_bytes": ticket["package_size_bytes"],
+            "package_sha256": ticket["package_sha256"],
+        }
+        with self.assertRaises(deploy.DeploymentError):
+            deploy.validate_manifest(manifest, ticket)
+
     def test_full_workbench_manifest_requires_dynamic_skill_count(self) -> None:
         ticket = self.ticket()
         manifest = {

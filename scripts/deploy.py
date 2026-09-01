@@ -34,6 +34,13 @@ import zipfile
 
 PRODUCT_ID = "ai-content-workbench"
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
+INSTALLABLE_MANIFEST_STATUSES = frozenset(
+    {
+        "single_machine_candidate_not_batch_release",
+        "verified_internal_pilot_not_batch_release",
+        "stable",
+    }
+)
 BROWSER_FALLBACK_TIMEOUT_SECONDS = 90
 MINIMUM_TICKET_REMAINING_SECONDS = 20 * 60
 AUTOPILOT_SCHEMA_VERSION = 1
@@ -620,10 +627,7 @@ def validate_manifest(manifest: dict[str, Any], ticket: dict[str, Any]) -> None:
             raise DeploymentError(f"部署票据与版本清单不一致：{manifest_key}")
     if not SHA256_RE.fullmatch(str(manifest["package_sha256"])):
         raise DeploymentError("版本清单 SHA-256 无效。")
-    if manifest["status"] not in {
-        "single_machine_candidate_not_batch_release",
-        "stable",
-    }:
+    if manifest["status"] not in INSTALLABLE_MANIFEST_STATUSES:
         raise DeploymentError("版本状态不允许安装。")
     package_contract = manifest.get("package_contract")
     if package_contract not in {None, "module_upgrade_v1", "full_workbench_v1"}:

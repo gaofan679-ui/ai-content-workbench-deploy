@@ -12,6 +12,11 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[a-f0-9]{64}$")
+INSTALLABLE_MANIFEST_STATUSES = {
+    "single_machine_candidate_not_batch_release",
+    "verified_internal_pilot_not_batch_release",
+    "stable",
+}
 SECRET_PATTERNS = (
     re.compile(r"(?i)(api[_-]?key|secret[_-]?key|access[_-]?token)\s*[=:]\s*['\"]?[A-Za-z0-9_\-]{12,}"),
     re.compile("X-Amz-" + "Signature=", re.I),
@@ -64,6 +69,8 @@ def main() -> int:
                 errors.append(f"版本登记不一致：{relative}")
             if manifest.get("release_tag") != channel.get("release_tag"):
                 errors.append(f"Release 标签不一致：{relative}")
+            if manifest.get("status") not in INSTALLABLE_MANIFEST_STATUSES:
+                errors.append(f"版本状态不能被部署器安装：{relative}")
             if not SHA_RE.fullmatch(str(manifest.get("package_sha256") or "")):
                 errors.append(f"包 SHA-256 无效：{relative}")
             if "package_url" in manifest:
