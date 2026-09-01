@@ -1409,12 +1409,27 @@ def customer_summary(
     }
 
 
-def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, Any]:
+def collect_module_readiness(
+    workbench: Path,
+    skills_home: Path,
+    environment: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     tools_root = workbench / "系统文件_无需打开" / "tools" / "scripts" / "workbench-setup"
     script = tools_root / "setup_status.py"
     registry = tools_root / "customer_setup_registry.json"
     if not script.is_file() or not registry.is_file():
         raise DeploymentError("安装后缺少功能可用性检查器，不能判定客户功能已经可用。")
+    readiness_environment = os.environ.copy()
+    validated_tool_directories: list[str] = []
+    for record in ((environment or {}).get("tools") or {}).values():
+        path = str((record or {}).get("path") or "").strip()
+        if path and Path(path).is_file():
+            validated_tool_directories.append(str(Path(path).parent))
+    if validated_tool_directories:
+        readiness_environment["PATH"] = os.pathsep.join(
+            [*dict.fromkeys(validated_tool_directories), readiness_environment.get("PATH", "")]
+        )
+
     with tempfile.TemporaryDirectory(prefix="aicw-module-readiness-") as directory:
         output = Path(directory) / "module_readiness.json"
         result = subprocess.run(
@@ -1431,6 +1446,7 @@ def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, An
             errors="replace",
             capture_output=True,
             timeout=30,
+            env=readiness_environment,
         )
         if not output.is_file():
             raise DeploymentError("安装后没有生成功能可用性报告。")
@@ -1438,6 +1454,12 @@ def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, An
             report = json.loads(output.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise DeploymentError("安装后的功能可用性报告无法读取。") from exc
+    diagnostic_root = workbench / "系统文件_无需打开" / "logs" / "deployment"
+    diagnostic_root.mkdir(parents=True, exist_ok=True)
+    (diagnostic_root / "module-readiness-latest.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     if int(report.get("schema_version") or 0) < 2:
         raise DeploymentError("功能可用性检查器版本过旧，不能判定客户功能已经可用。")
     modules = report.get("customer_modules")
@@ -1449,7 +1471,8 @@ def collect_module_readiness(workbench: Path, skills_home: Path) -> dict[str, An
         if str(row.get("status") or "").startswith("blocked_")
     ]
     if result.returncode != 0 or blocking:
-        names = "、".join(blocking) if blocking else "基础运行环境"
+        missing_tools = [str(item) for item in report.get("required_missing") or []]
+        names = "、".join(blocking) if blocking else "、".join(missing_tools) or "基础运行环境"
         raise DeploymentError(f"安装后功能验收未通过：{names}。已停止判定为安装成功。")
     return report
 
@@ -2028,7 +2051,7 @@ def run_full_workbench_install(
         service_activation = activate_windows_web_services(workbench, environment)
     else:
         service_activation = {"status": "managed_by_installer", "activation_mode": "platform_native"}
-    module_readiness = collect_module_readiness(workbench, skills_home)
+    module_readiness = collect_module_readiness(workbench, skills_home, environment)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
@@ -2119,7 +2142,7 @@ def run_first_install(
         message = (result.stderr or result.stdout or "首次安装器没有返回说明").strip()
         raise DeploymentError(f"首次安装器阻塞：{message[-1200:]}")
     checked = verify_first_install(package_dir / "codex_skills", skills_home, workbench)
-    module_readiness = collect_module_readiness(workbench, skills_home)
+    module_readiness = collect_module_readiness(workbench, skills_home, environment)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
     safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))

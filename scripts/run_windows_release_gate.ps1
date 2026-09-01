@@ -261,6 +261,11 @@ function Invoke-CustomerDeployment {
       if (Test-Path -LiteralPath $serviceLogRoot -PathType Container) {
         Copy-Item -LiteralPath $serviceLogRoot -Destination $serviceEvidence -Recurse -Force
       }
+      $deploymentLogRoot = Join-Path $Workspace "系统文件_无需打开\logs\deployment"
+      $deploymentEvidence = Join-Path $EvidenceRoot ($LogName + "-deployment-logs")
+      if (Test-Path -LiteralPath $deploymentLogRoot -PathType Container) {
+        Copy-Item -LiteralPath $deploymentLogRoot -Destination $deploymentEvidence -Recurse -Force
+      }
       Get-CimInstance Win32_Process |
         Where-Object { $_.Name -match '^node(\.exe)?$' -or $_.Name -match '^powershell(\.exe)?$' } |
         Select-Object Name, ProcessId, ParentProcessId, CommandLine |
