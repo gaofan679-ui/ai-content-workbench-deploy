@@ -1420,6 +1420,8 @@ def collect_module_readiness(
     if not script.is_file() or not registry.is_file():
         raise DeploymentError("安装后缺少功能可用性检查器，不能判定客户功能已经可用。")
     readiness_environment = os.environ.copy()
+    readiness_environment["PYTHONUTF8"] = "1"
+    readiness_environment["PYTHONIOENCODING"] = "utf-8"
     validated_tool_directories: list[str] = []
     for record in ((environment or {}).get("tools") or {}).values():
         path = str((record or {}).get("path") or "").strip()
