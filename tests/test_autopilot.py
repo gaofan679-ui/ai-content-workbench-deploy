@@ -87,6 +87,46 @@ class AutopilotTests(unittest.TestCase):
             self.assertNotIn("package_url", text)
             self.assertEqual(json.loads(text)["stage"], "package_verified")
 
+    def test_service_activation_checkpoint_keeps_verified_resume_context(self) -> None:
+        ticket, manifest = ticket_and_manifest()
+        ticket["platform"] = manifest["platform"] = "macos"
+        ticket["version"] = manifest["version"] = "1.8.1-rc.3"
+        context = {
+            "workbench": "/tmp/AIContentWorkbench",
+            "skills_home": "/tmp/.codex/skills",
+            "install_mode": "incremental_upgrade",
+            "backup_record": "/tmp/backup",
+            "post_install_identity_files_checked": 349,
+        }
+        with tempfile.TemporaryDirectory() as name, mock.patch.dict(
+            deploy.os.environ, {deploy.DEPLOYER_STATE_ENV: name}
+        ):
+            checkpoint = deploy.write_checkpoint(
+                ticket,
+                manifest,
+                stage="service_activation",
+                status="blocked",
+                attempts={"service_activation": 1},
+                incident={
+                    "safe_to_retry": True,
+                    "action": "resume_verified_macos_service_activation",
+                },
+                resume_context=context,
+            )
+            payload = json.loads(checkpoint.read_text(encoding="utf-8"))
+            self.assertEqual(payload["resume_context"], context)
+            self.assertEqual(payload["attempts"]["service_activation"], 1)
+
+    def test_macos_service_activation_failure_resumes_from_verified_stage(self) -> None:
+        decision = deploy.classify_deployment_failure(
+            "Mac 网页工作台服务启动失败：Bootstrap failed: 5: Input/output error",
+            platform_id="macos",
+            version="1.8.1-rc.3",
+        )
+        self.assertEqual(decision["category"], "local_service_activation")
+        self.assertEqual(decision["action"], "resume_verified_macos_service_activation")
+        self.assertTrue(decision["safe_to_retry"])
+
     def test_verified_cache_is_reused_without_network(self) -> None:
         ticket, manifest = ticket_and_manifest()
         manifest["package_sha256"] = deploy.hashlib.sha256(b"zip").hexdigest()
@@ -151,11 +191,17 @@ class AutopilotTests(unittest.TestCase):
     def test_macos_activation_barrier_precedes_module_readiness(self) -> None:
         deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
         self.assertIn("def activate_macos_web_services", deploy_source)
-        self.assertEqual(
-            deploy_source.count("service_activation = activate_macos_web_services(workbench)"),
+        self.assertGreaterEqual(
+            deploy_source.count('installer_environment["WORKBENCH_SERVICE_NO_REGISTER"] = "1"'),
             2,
         )
-        self.assertIn("post_installer_launchctl_bounded_wait", deploy_source)
+        self.assertIn("wait_for_macos_services_unloaded", deploy_source)
+        self.assertIn("resume_verified_macos_service_activation", deploy_source)
+        self.assertEqual(
+            deploy_source.count("service_activation = activate_macos_web_services(workbench)"),
+            3,
+        )
+        self.assertIn("post_installer_single_owner_launchctl_bounded_wait", deploy_source)
         self.assertEqual(deploy_source.count('"service_activation": service_activation'), 2)
 
     def test_fresh_install_accepts_a_not_yet_created_explicit_skill_root(self) -> None:

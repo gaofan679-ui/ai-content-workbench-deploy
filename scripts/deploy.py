@@ -26,7 +26,7 @@ import sys
 import tempfile
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 import urllib.parse
 import urllib.request
 import zipfile
@@ -146,6 +146,9 @@ def classify_deployment_failure(message: str, *, platform_id: str, version: str)
          "客户包安全校验没有通过，未继续安装；需要部署方重新核对正式包。"),
         (r"timed out|timeout|TLS|certificate|network|网络|下载失败|无法读取远程", "network", "retry_network_routes", True,
          "当前网络通道暂时不可用，部署程序会自动换线路并继续。"),
+        (r"Mac (?:旧版)?网页工作台服务.*(?:失败|没有在限定时间内|没有返回健康状态)",
+         "local_service_activation", "resume_verified_macos_service_activation", True,
+         "工作台文件已经安全安装；部署程序会从服务启动断点继续，不会重新覆盖项目和配置。"),
         (r"Node|npm|Python|ffmpeg|PATH|基础环境|依赖", "dependency", "refresh_environment_and_retry", True,
          "基础工具尚未就绪，部署程序会自动补齐或刷新后继续。"),
         (r"管理员|permission|access.*denied|权限|验证码|登录|付款", "authorization", "user_confirmation", False,
@@ -187,6 +190,7 @@ def write_checkpoint(
     status: str,
     attempts: dict[str, int] | None = None,
     incident: dict[str, Any] | None = None,
+    resume_context: dict[str, Any] | None = None,
 ) -> Path:
     paths = session_paths(ticket)
     payload: dict[str, Any] = {
@@ -206,6 +210,8 @@ def write_checkpoint(
     }
     if incident:
         payload["incident"] = incident
+    if resume_context:
+        payload["resume_context"] = resume_context
     atomic_write_json(paths["checkpoint"], payload)
     return paths["checkpoint"]
 
@@ -1437,7 +1443,18 @@ def collect_module_readiness(
         )
 
     with tempfile.TemporaryDirectory(prefix="aicw-module-readiness-") as directory:
+        isolated_home = Path(directory) / "home"
+        isolated_home.mkdir()
         output = Path(directory) / "module_readiness.json"
+        # The packaged checker accepts an explicit skills root, but older
+        # payloads also compare it with every standard root under the current
+        # user and pick the largest one.  During deployment that can make a
+        # stale personal root win over the just-verified customer root.  Keep
+        # this structural acceptance isolated and deterministic; account and
+        # optional-provider readiness remains a post-install customer step.
+        readiness_environment["CODEX_SKILLS_HOME"] = str(skills_home)
+        readiness_environment["HOME"] = str(isolated_home)
+        readiness_environment["USERPROFILE"] = str(isolated_home)
         result = subprocess.run(
             [
                 sys.executable,
@@ -1613,12 +1630,46 @@ def activate_windows_web_services(
     return report
 
 
+MACOS_SERVICE_LABELS = (
+    "com.onecontent.visual-workbench.runtime",
+    "com.onecontent.visual-workbench.web",
+)
+
+
+def wait_for_macos_services_unloaded(*, timeout_seconds: int = 15) -> dict[str, Any]:
+    """Wait until launchd has finished removing both managed user services."""
+    uid = os.getuid()
+    deadline = time.monotonic() + timeout_seconds
+    remaining = list(MACOS_SERVICE_LABELS)
+    while time.monotonic() < deadline:
+        remaining = []
+        for label in MACOS_SERVICE_LABELS:
+            try:
+                result = subprocess.run(
+                    ["/bin/launchctl", "print", f"gui/{uid}/{label}"],
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    capture_output=True,
+                    timeout=5,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise DeploymentError("Mac 服务退出状态检查失败。") from exc
+            if result.returncode == 0:
+                remaining.append(label)
+        if not remaining:
+            return {"status": "passed", "labels": list(MACOS_SERVICE_LABELS)}
+        time.sleep(0.25)
+    raise DeploymentError(
+        "Mac 旧版网页工作台服务没有在限定时间内退出：" + ", ".join(remaining)
+    )
+
+
 def activate_macos_web_services(workbench: Path) -> dict[str, Any]:
     """Activate launchd-managed services and wait for both health endpoints.
 
-    The native installer owns registration of the LaunchAgents.  The deployer
-    owns the post-install activation barrier so module readiness never races
-    the asynchronous launchd startup.
+    The native installer only lays down deterministic files.  The deployer is
+    the single owner of post-install LaunchAgent registration and readiness.
     """
     service_script = (
         workbench
@@ -1635,6 +1686,25 @@ def activate_macos_web_services(workbench: Path) -> dict[str, Any]:
     activation_environment = os.environ.copy()
     activation_environment["AI_WORKBENCH_HOME"] = str(workbench)
     try:
+        stopped = subprocess.run(
+            ["/bin/zsh", str(service_script), "stop"],
+            cwd=service_script.parent,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=20,
+            env=activation_environment,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DeploymentError("Mac 旧版网页工作台服务没有在限定时间内停止。") from exc
+    except OSError as exc:
+        raise DeploymentError("Mac 旧版网页工作台服务停止失败。") from exc
+    if stopped.returncode != 0:
+        detail = (stopped.stderr or stopped.stdout or "Mac 旧服务停止失败").strip()
+        raise DeploymentError(f"Mac 旧版网页工作台服务停止失败：{detail[-1000:]}")
+    unload = wait_for_macos_services_unloaded()
+    try:
         result = subprocess.run(
             ["/bin/zsh", str(service_script), "start"],
             cwd=service_script.parent,
@@ -1647,6 +1717,8 @@ def activate_macos_web_services(workbench: Path) -> dict[str, Any]:
         )
     except subprocess.TimeoutExpired as exc:
         raise DeploymentError("Mac 网页工作台服务没有在限定时间内就绪。") from exc
+    except OSError as exc:
+        raise DeploymentError("Mac 网页工作台服务启动失败。") from exc
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "Mac 服务启动后没有返回健康状态").strip()
         raise DeploymentError(f"Mac 网页工作台服务启动失败：{detail[-1000:]}")
@@ -1654,8 +1726,73 @@ def activate_macos_web_services(workbench: Path) -> dict[str, Any]:
         "status": "passed",
         "runtime_url": "http://127.0.0.1:4318/health",
         "web_url": "http://127.0.0.1:3000/",
-        "activation_mode": "post_installer_launchctl_bounded_wait",
+        "activation_mode": "post_installer_single_owner_launchctl_bounded_wait",
+        "old_services_unloaded": unload["status"],
     }
+
+
+def write_full_workbench_receipt(
+    *,
+    workbench: Path,
+    skills_home: Path,
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    ticket_source: str,
+    environment: dict[str, Any],
+    detection: dict[str, Any],
+    install_mode: str,
+    backup_record: str,
+    checked: int,
+    mirror_records: list[dict[str, Any]],
+    layout_contract: dict[str, Any],
+    service_activation: dict[str, Any],
+    module_readiness: dict[str, Any],
+) -> Path:
+    receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
+    receipt_path = receipt_dir / f"{safe_id}.json"
+    receipt = {
+        "schema_version": 1,
+        "status": "installed_and_verified",
+        "installed_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "ticket_id": ticket["ticket_id"],
+        "customer_id": ticket["customer_id"],
+        "ticket_source": redacted_location(ticket_source),
+        "product_id": PRODUCT_ID,
+        "version": manifest["version"],
+        "release_tag": manifest["release_tag"],
+        "release_id": manifest["release_id"],
+        "platform": manifest["platform"],
+        "install_mode": install_mode,
+        "package_contract": "full_workbench_v1",
+        "package_sha256": manifest["package_sha256"],
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "skills_recovery": detection.get("skills_recovery", "not_needed"),
+        "skills_mirror_sync": mirror_records,
+        "layout_contract": layout_contract,
+        "backup_record": backup_record,
+        "post_install_tree_verification": "passed",
+        "post_install_identity_files_checked": checked,
+        "environment_preflight": environment,
+        "service_activation": service_activation,
+        "module_readiness": module_readiness,
+        "customer_summary": customer_summary(
+            manifest,
+            {"install_mode": install_mode},
+            environment,
+            phase="apply",
+            module_readiness=module_readiness,
+        ),
+        "paid_calls": 0,
+        "external_uploads": 0,
+        "rollback": "requires_separate_explicit_confirmation",
+    }
+    temporary = receipt_path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, receipt_path)
+    return receipt_path
 
 
 def sha256_file(path: Path) -> str:
@@ -2032,6 +2169,7 @@ def run_full_workbench_install(
     ticket_source: str,
     environment: dict[str, Any],
     detection: dict[str, Any],
+    before_service_activation: Callable[[dict[str, Any]], None] | None = None,
 ) -> Path:
     install_mode = str(manifest["install_mode"])
     if install_mode == "first_install":
@@ -2049,6 +2187,11 @@ def run_full_workbench_install(
         if not installer.is_file():
             raise DeploymentError("Mac 完整工作台包缺少正式安装器。")
         installer_environment = os.environ.copy()
+        # The captured installer owns only deterministic file preparation.
+        # The deployer becomes the single owner of LaunchAgent registration
+        # after file identity checks, preventing duplicate bootout/bootstrap
+        # races on upgrades from an already running workbench.
+        installer_environment["WORKBENCH_SERVICE_NO_REGISTER"] = "1"
         if validated_layout:
             installer_environment["AICW_VALIDATED_LAYOUT"] = validated_layout
         result = subprocess.run(
@@ -2097,57 +2240,39 @@ def run_full_workbench_install(
     backup_root = next(iter(new_backups)) if len(new_backups) == 1 else None
     if install_mode == "incremental_upgrade" and backup_root is None:
         raise DeploymentError("安装完成但没有找到本次唯一升级备份。")
+    resume_context = {
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "install_mode": install_mode,
+        "backup_record": str(backup_root) if backup_root else "not_applicable_fresh_environment",
+        "post_install_identity_files_checked": checked,
+        "skills_mirror_sync": mirror_records,
+        "layout_contract": layout_contract,
+    }
+    if before_service_activation is not None:
+        before_service_activation(resume_context)
     service_activation: dict[str, Any]
     if manifest["platform"] == "windows":
         service_activation = activate_windows_web_services(workbench, environment)
     else:
         service_activation = activate_macos_web_services(workbench)
     module_readiness = collect_module_readiness(workbench, skills_home, environment)
-    receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
-    receipt_dir.mkdir(parents=True, exist_ok=True)
-    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
-    receipt_path = receipt_dir / f"{safe_id}.json"
-    receipt = {
-        "schema_version": 1,
-        "status": "installed_and_verified",
-        "installed_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "ticket_id": ticket["ticket_id"],
-        "customer_id": ticket["customer_id"],
-        "ticket_source": redacted_location(ticket_source),
-        "product_id": PRODUCT_ID,
-        "version": manifest["version"],
-        "release_tag": manifest["release_tag"],
-        "release_id": manifest["release_id"],
-        "platform": manifest["platform"],
-        "install_mode": install_mode,
-        "package_contract": "full_workbench_v1",
-        "package_sha256": manifest["package_sha256"],
-        "workbench": str(workbench),
-        "skills_home": str(skills_home),
-        "skills_recovery": detection.get("skills_recovery", "not_needed"),
-        "skills_mirror_sync": mirror_records,
-        "layout_contract": layout_contract,
-        "backup_record": str(backup_root) if backup_root else "not_applicable_fresh_environment",
-        "post_install_tree_verification": "passed",
-        "post_install_identity_files_checked": checked,
-        "environment_preflight": environment,
-        "service_activation": service_activation,
-        "module_readiness": module_readiness,
-        "customer_summary": customer_summary(
-            manifest,
-            {"install_mode": install_mode},
-            environment,
-            phase="apply",
-            module_readiness=module_readiness,
-        ),
-        "paid_calls": 0,
-        "external_uploads": 0,
-        "rollback": "requires_separate_explicit_confirmation",
-    }
-    temporary = receipt_path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(temporary, receipt_path)
-    return receipt_path
+    return write_full_workbench_receipt(
+        workbench=workbench,
+        skills_home=skills_home,
+        ticket=ticket,
+        manifest=manifest,
+        ticket_source=ticket_source,
+        environment=environment,
+        detection=detection,
+        install_mode=install_mode,
+        backup_record=resume_context["backup_record"],
+        checked=checked,
+        mirror_records=mirror_records,
+        layout_contract=layout_contract,
+        service_activation=service_activation,
+        module_readiness=module_readiness,
+    )
 
 
 def run_first_install(
@@ -2166,6 +2291,8 @@ def run_first_install(
         installer = package_dir / "mac" / "tools" / "install_ai_content_workbench.sh"
         if not installer.is_file():
             raise DeploymentError("Mac 首次安装包缺少正式安装器。")
+        installer_environment = os.environ.copy()
+        installer_environment["WORKBENCH_SERVICE_NO_REGISTER"] = "1"
         result = subprocess.run(
             ["bash", str(installer)],
             input=f"{workbench}\n{skills_home}\nYES\n",
@@ -2173,6 +2300,7 @@ def run_first_install(
             encoding="utf-8",
             errors="replace",
             capture_output=True,
+            env=installer_environment,
         )
     else:
         installer = package_dir / "installer" / "Install_AI_Content_Workbench.ps1"
@@ -2319,8 +2447,135 @@ def deployment_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def resume_verified_macos_service_activation(
+    args: argparse.Namespace,
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+    workbench: Path,
+    skills_home: Path,
+    detection: dict[str, Any],
+    state: dict[str, Any],
+) -> int:
+    if (
+        manifest.get("platform") != "macos"
+        or manifest.get("package_contract") != "full_workbench_v1"
+        or state.get("stage") != "service_activation"
+    ):
+        raise DeploymentError("当前断点不是可独立恢复的 Mac 服务启动阶段。")
+    context = state.get("resume_context")
+    if not isinstance(context, dict):
+        raise DeploymentError("Mac 服务启动断点缺少已经验证的安装上下文。")
+    if context.get("workbench") != str(workbench) or context.get("skills_home") != str(skills_home):
+        raise DeploymentError("Mac 服务启动断点与当前安装目录不一致，不能自动继续。")
+    checked = context.get("post_install_identity_files_checked")
+    if not isinstance(checked, int) or checked <= 0 or _workbench_state(workbench) != "managed":
+        raise DeploymentError("Mac 服务启动前的文件身份验收记录不完整，不能自动继续。")
+
+    attempts = state.get("attempts") if isinstance(state.get("attempts"), dict) else {}
+    activation_attempts = int(attempts.get("service_activation", 0))
+    if activation_attempts >= MAX_SAFE_RECOVERY_ATTEMPTS:
+        raise DeploymentError("Mac 服务启动已达到安全重试上限，需要部署方检查。")
+    attempts["service_activation"] = activation_attempts + 1
+    write_checkpoint(
+        ticket,
+        manifest,
+        stage="service_activation",
+        status="running",
+        attempts=attempts,
+        resume_context=context,
+    )
+
+    try:
+        environment = environment_report(manifest)
+        if environment["status"] != "ready":
+            raise DeploymentError("Mac 服务恢复前发现基础环境已变化，需要重新执行只读检查。")
+        service_activation = activate_macos_web_services(workbench)
+        module_readiness = collect_module_readiness(workbench, skills_home, environment)
+        receipt = write_full_workbench_receipt(
+            workbench=workbench,
+            skills_home=skills_home,
+            ticket=ticket,
+            manifest=manifest,
+            ticket_source=args.ticket,
+            environment=environment,
+            detection=detection,
+            install_mode=str(context["install_mode"]),
+            backup_record=str(context["backup_record"]),
+            checked=checked,
+            mirror_records=(
+                context["skills_mirror_sync"]
+                if isinstance(context.get("skills_mirror_sync"), list)
+                else []
+            ),
+            layout_contract=(
+                context["layout_contract"]
+                if isinstance(context.get("layout_contract"), dict)
+                else {}
+            ),
+            service_activation=service_activation,
+            module_readiness=module_readiness,
+        )
+    except DeploymentError as exc:
+        decision = classify_deployment_failure(
+            str(exc), platform_id="macos", version=str(manifest["version"])
+        )
+        if attempts["service_activation"] >= MAX_SAFE_RECOVERY_ATTEMPTS:
+            decision = {
+                "category": "local_service_activation",
+                "action": "release_review_after_bounded_retry",
+                "safe_to_retry": False,
+                "rule_id": "macos-service-activation-retry-exhausted",
+                "customer_message": "Mac 工作台服务连续两次未能启动，已保留安装文件和数据，需要部署方检查。",
+            }
+        normalized = redact_error_text(str(exc))
+        incident = {
+            "category": decision["category"],
+            "action": decision["action"],
+            "safe_to_retry": decision["safe_to_retry"],
+            "rule_id": decision["rule_id"],
+            "error_fingerprint": hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
+            "technical_summary": normalized,
+            "customer_message": decision["customer_message"],
+            "stage_when_blocked": "service_activation",
+        }
+        write_checkpoint(
+            ticket,
+            manifest,
+            stage="service_activation",
+            status="blocked",
+            attempts=attempts,
+            incident=incident,
+            resume_context=context,
+        )
+        raise DeploymentError(str(decision["customer_message"])) from exc
+
+    write_checkpoint(
+        ticket,
+        manifest,
+        stage="installed_and_verified",
+        status="completed",
+        attempts=attempts,
+        resume_context=context,
+    )
+    print(
+        json.dumps(
+            {
+                "customer_summary": customer_summary(
+                    manifest, detection, environment, phase="apply", module_readiness=module_readiness
+                ),
+                "write_performed": True,
+                "resumed_from": "verified_macos_service_activation",
+                "next_step": "重新打开工作台，再按中文入口做一次不付费、不上传的功能确认。",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def resume(args: argparse.Namespace) -> int:
-    ticket, manifest, _, _, _ = load_context(args)
+    ticket, manifest, workbench, skills_home, detection = load_context(args)
     checkpoint = session_paths(ticket)["checkpoint"]
     if not checkpoint.is_file():
         raise DeploymentError("没有找到已经确认过的部署断点，不能跳过首次确认。")
@@ -2338,6 +2593,10 @@ def resume(args: argparse.Namespace) -> int:
         raise DeploymentError("部署断点与当前票据不一致，不能自动继续。")
     if state.get("status") != "blocked" or not incident.get("safe_to_retry"):
         raise DeploymentError("当前问题不在安全自动恢复范围内，不能强行继续。")
+    if incident.get("action") == "resume_verified_macos_service_activation":
+        return resume_verified_macos_service_activation(
+            args, ticket, manifest, workbench, skills_home, detection, state
+        )
     args.confirm_write = "YES"
     return apply(args)
 
@@ -2347,6 +2606,7 @@ def apply(args: argparse.Namespace) -> int:
         raise DeploymentError("尚未获得明确写入确认；当前没有下载或安装。")
     ticket, manifest, workbench, skills_home, detection = load_context(args)
     attempts: dict[str, int] = {}
+    resume_context: dict[str, Any] = {}
     stage = "context_validated"
     write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
     try:
@@ -2384,8 +2644,30 @@ def apply(args: argparse.Namespace) -> int:
             stage = "installer_running"
             write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
             if manifest.get("package_contract") == "full_workbench_v1":
+                def mark_service_activation(context: dict[str, Any]) -> None:
+                    nonlocal stage, resume_context
+                    stage = "service_activation"
+                    resume_context = context
+                    attempts["service_activation"] = 1
+                    write_checkpoint(
+                        ticket,
+                        manifest,
+                        stage=stage,
+                        status="running",
+                        attempts=attempts,
+                        resume_context=resume_context,
+                    )
+
                 receipt = run_full_workbench_install(
-                    package_dir, workbench, skills_home, ticket, manifest, args.ticket, environment, detection
+                    package_dir,
+                    workbench,
+                    skills_home,
+                    ticket,
+                    manifest,
+                    args.ticket,
+                    environment,
+                    detection,
+                    before_service_activation=mark_service_activation,
                 )
                 backup_record = None
             elif manifest["install_mode"] == "incremental_upgrade":
@@ -2412,7 +2694,14 @@ def apply(args: argparse.Namespace) -> int:
                 )
                 backup_record = None
         stage = "installed_and_verified"
-        write_checkpoint(ticket, manifest, stage=stage, status="completed", attempts=attempts)
+        write_checkpoint(
+            ticket,
+            manifest,
+            stage=stage,
+            status="completed",
+            attempts=attempts,
+            resume_context=resume_context,
+        )
     except DeploymentError as exc:
         decision = classify_deployment_failure(
             str(exc), platform_id=str(manifest["platform"]), version=str(manifest["version"])
@@ -2429,7 +2718,13 @@ def apply(args: argparse.Namespace) -> int:
             "stage_when_blocked": stage,
         }
         write_checkpoint(
-            ticket, manifest, stage=stage, status="blocked", attempts=attempts, incident=incident
+            ticket,
+            manifest,
+            stage=stage,
+            status="blocked",
+            attempts=attempts,
+            incident=incident,
+            resume_context=resume_context,
         )
         raise DeploymentError(str(decision["customer_message"])) from exc
     print(

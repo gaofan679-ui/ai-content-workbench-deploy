@@ -18,6 +18,37 @@ SPEC.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_module_readiness_isolates_stale_personal_skill_roots(self):
+        with tempfile.TemporaryDirectory() as name:
+            workbench = Path(name) / "AIContentWorkbench"
+            tools = workbench / "系统文件_无需打开/tools/scripts/workbench-setup"
+            tools.mkdir(parents=True)
+            (tools / "setup_status.py").write_text("# test\n", encoding="utf-8")
+            (tools / "customer_setup_registry.json").write_text("{}\n", encoding="utf-8")
+            skills_home = Path(name) / "customer-skills"
+            skills_home.mkdir()
+
+            def completed(command, **kwargs):
+                output = Path(command[command.index("--json-output") + 1])
+                output.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": 2,
+                            "customer_modules": [{"id": "core", "label": "网页工作台", "status": "ready"}],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                environment = kwargs["env"]
+                self.assertEqual(environment["CODEX_SKILLS_HOME"], str(skills_home))
+                self.assertNotEqual(environment["HOME"], str(Path.home()))
+                self.assertEqual(environment["USERPROFILE"], environment["HOME"])
+                return mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(deploy.subprocess, "run", side_effect=completed):
+                report = deploy.collect_module_readiness(workbench, skills_home)
+            self.assertEqual(report["customer_modules"][0]["status"], "ready")
+
     def test_macos_service_activation_uses_installed_helper_and_bounded_wait(self):
         with tempfile.TemporaryDirectory() as name:
             workbench = Path(name)
@@ -33,17 +64,22 @@ class DeploymentTests(unittest.TestCase):
             helper.parent.mkdir(parents=True)
             helper.write_text("#!/bin/zsh\nexit 0\n", encoding="utf-8")
             completed = mock.Mock(returncode=0, stdout="ok", stderr="")
-            with mock.patch.object(deploy.subprocess, "run", return_value=completed) as runner:
+            with mock.patch.object(
+                deploy, "wait_for_macos_services_unloaded", return_value={"status": "passed"}
+            ), mock.patch.object(deploy.subprocess, "run", return_value=completed) as runner:
                 report = deploy.activate_macos_web_services(workbench)
             self.assertEqual(report["status"], "passed")
             self.assertEqual(report["web_url"], "http://127.0.0.1:3000/")
-            command = runner.call_args.args[0]
+            self.assertEqual(runner.call_count, 2)
+            self.assertEqual(runner.call_args_list[0].args[0], ["/bin/zsh", str(helper), "stop"])
+            command = runner.call_args_list[1].args[0]
             self.assertEqual(command, ["/bin/zsh", str(helper), "start"])
-            self.assertEqual(runner.call_args.kwargs["timeout"], 45)
+            self.assertEqual(runner.call_args_list[1].kwargs["timeout"], 45)
             self.assertEqual(
-                runner.call_args.kwargs["env"]["AI_WORKBENCH_HOME"],
+                runner.call_args_list[1].kwargs["env"]["AI_WORKBENCH_HOME"],
                 str(workbench),
             )
+            self.assertEqual(report["old_services_unloaded"], "passed")
 
     def test_macos_service_activation_blocks_when_helper_is_missing(self):
         with tempfile.TemporaryDirectory() as name:
@@ -64,8 +100,11 @@ class DeploymentTests(unittest.TestCase):
             )
             helper.parent.mkdir(parents=True)
             helper.write_text("#!/bin/zsh\nexit 2\n", encoding="utf-8")
-            completed = mock.Mock(returncode=2, stdout="", stderr="services not ready")
-            with mock.patch.object(deploy.subprocess, "run", return_value=completed):
+            stopped = mock.Mock(returncode=0, stdout="", stderr="")
+            failed = mock.Mock(returncode=2, stdout="", stderr="services not ready")
+            with mock.patch.object(
+                deploy, "wait_for_macos_services_unloaded", return_value={"status": "passed"}
+            ), mock.patch.object(deploy.subprocess, "run", side_effect=[stopped, failed]):
                 with self.assertRaisesRegex(deploy.DeploymentError, "services not ready"):
                     deploy.activate_macos_web_services(workbench)
 
