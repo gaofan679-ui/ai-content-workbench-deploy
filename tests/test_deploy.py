@@ -18,6 +18,57 @@ SPEC.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_macos_service_activation_uses_installed_helper_and_bounded_wait(self):
+        with tempfile.TemporaryDirectory() as name:
+            workbench = Path(name)
+            helper = (
+                workbench
+                / "系统文件_无需打开"
+                / "tools"
+                / "web-workbench"
+                / "service"
+                / "macos"
+                / "workbench-service.sh"
+            )
+            helper.parent.mkdir(parents=True)
+            helper.write_text("#!/bin/zsh\nexit 0\n", encoding="utf-8")
+            completed = mock.Mock(returncode=0, stdout="ok", stderr="")
+            with mock.patch.object(deploy.subprocess, "run", return_value=completed) as runner:
+                report = deploy.activate_macos_web_services(workbench)
+            self.assertEqual(report["status"], "passed")
+            self.assertEqual(report["web_url"], "http://127.0.0.1:3000/")
+            command = runner.call_args.args[0]
+            self.assertEqual(command, ["/bin/zsh", str(helper), "start"])
+            self.assertEqual(runner.call_args.kwargs["timeout"], 45)
+            self.assertEqual(
+                runner.call_args.kwargs["env"]["AI_WORKBENCH_HOME"],
+                str(workbench),
+            )
+
+    def test_macos_service_activation_blocks_when_helper_is_missing(self):
+        with tempfile.TemporaryDirectory() as name:
+            with self.assertRaises(deploy.DeploymentError):
+                deploy.activate_macos_web_services(Path(name))
+
+    def test_macos_service_activation_blocks_when_helper_never_becomes_ready(self):
+        with tempfile.TemporaryDirectory() as name:
+            workbench = Path(name)
+            helper = (
+                workbench
+                / "系统文件_无需打开"
+                / "tools"
+                / "web-workbench"
+                / "service"
+                / "macos"
+                / "workbench-service.sh"
+            )
+            helper.parent.mkdir(parents=True)
+            helper.write_text("#!/bin/zsh\nexit 2\n", encoding="utf-8")
+            completed = mock.Mock(returncode=2, stdout="", stderr="services not ready")
+            with mock.patch.object(deploy.subprocess, "run", return_value=completed):
+                with self.assertRaisesRegex(deploy.DeploymentError, "services not ready"):
+                    deploy.activate_macos_web_services(workbench)
+
     def test_optional_caption_component_is_visible_but_does_not_block_base_install(self):
         module = deploy
         with mock.patch.object(module, "resolve_required_tool", return_value={"status": "pass", "path": "/test"}):

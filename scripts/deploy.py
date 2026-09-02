@@ -1613,6 +1613,51 @@ def activate_windows_web_services(
     return report
 
 
+def activate_macos_web_services(workbench: Path) -> dict[str, Any]:
+    """Activate launchd-managed services and wait for both health endpoints.
+
+    The native installer owns registration of the LaunchAgents.  The deployer
+    owns the post-install activation barrier so module readiness never races
+    the asynchronous launchd startup.
+    """
+    service_script = (
+        workbench
+        / "系统文件_无需打开"
+        / "tools"
+        / "web-workbench"
+        / "service"
+        / "macos"
+        / "workbench-service.sh"
+    )
+    if not service_script.is_file():
+        raise DeploymentError("Mac 安装后缺少网页工作台服务启动器。")
+
+    activation_environment = os.environ.copy()
+    activation_environment["AI_WORKBENCH_HOME"] = str(workbench)
+    try:
+        result = subprocess.run(
+            ["/bin/zsh", str(service_script), "start"],
+            cwd=service_script.parent,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=45,
+            env=activation_environment,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DeploymentError("Mac 网页工作台服务没有在限定时间内就绪。") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "Mac 服务启动后没有返回健康状态").strip()
+        raise DeploymentError(f"Mac 网页工作台服务启动失败：{detail[-1000:]}")
+    return {
+        "status": "passed",
+        "runtime_url": "http://127.0.0.1:4318/health",
+        "web_url": "http://127.0.0.1:3000/",
+        "activation_mode": "post_installer_launchctl_bounded_wait",
+    }
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -2056,7 +2101,7 @@ def run_full_workbench_install(
     if manifest["platform"] == "windows":
         service_activation = activate_windows_web_services(workbench, environment)
     else:
-        service_activation = {"status": "managed_by_installer", "activation_mode": "platform_native"}
+        service_activation = activate_macos_web_services(workbench)
     module_readiness = collect_module_readiness(workbench, skills_home, environment)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
@@ -2148,6 +2193,11 @@ def run_first_install(
         message = (result.stderr or result.stdout or "首次安装器没有返回说明").strip()
         raise DeploymentError(f"首次安装器阻塞：{message[-1200:]}")
     checked = verify_first_install(package_dir / "codex_skills", skills_home, workbench)
+    service_activation: dict[str, Any]
+    if manifest["platform"] == "windows":
+        service_activation = activate_windows_web_services(workbench, environment)
+    else:
+        service_activation = activate_macos_web_services(workbench)
     module_readiness = collect_module_readiness(workbench, skills_home, environment)
     receipt_dir = workbench / "系统文件_无需打开" / "deployment_receipts"
     receipt_dir.mkdir(parents=True, exist_ok=True)
@@ -2173,6 +2223,7 @@ def run_first_install(
         "post_install_tree_verification": "passed",
         "post_install_identity_files_checked": checked,
         "environment_preflight": environment,
+        "service_activation": service_activation,
         "module_readiness": module_readiness,
         "customer_summary": customer_summary(
             manifest,

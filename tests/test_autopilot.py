@@ -139,6 +139,25 @@ class AutopilotTests(unittest.TestCase):
             deploy_source.index("service_activation = activate_windows_web_services"),
         )
 
+    def test_macos_shortcuts_start_services_and_open_the_web_port(self) -> None:
+        installer = self.canonical_source_text("mac/tools/install_ai_content_workbench.sh")
+        setup = self.canonical_source_text("mac/tools/complete_workbench_setup.sh")
+        for source in (installer, setup):
+            self.assertIn("workbench-service.sh", source)
+            self.assertIn('"$SERVICE_SCRIPT" start', source)
+            self.assertIn("http://127.0.0.1:3000", source)
+            self.assertNotIn("http://127.0.0.1:4317", source)
+
+    def test_macos_activation_barrier_precedes_module_readiness(self) -> None:
+        deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
+        self.assertIn("def activate_macos_web_services", deploy_source)
+        self.assertEqual(
+            deploy_source.count("service_activation = activate_macos_web_services(workbench)"),
+            2,
+        )
+        self.assertIn("post_installer_launchctl_bounded_wait", deploy_source)
+        self.assertEqual(deploy_source.count('"service_activation": service_activation'), 2)
+
     def test_fresh_install_accepts_a_not_yet_created_explicit_skill_root(self) -> None:
         deploy_source = (ROOT / "scripts" / "deploy.py").read_text(encoding="utf-8")
         self.assertIn('if mode == "incremental_upgrade" and not path.is_dir():', deploy_source)
