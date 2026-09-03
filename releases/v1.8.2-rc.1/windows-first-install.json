@@ -6,7 +6,7 @@
   "release_tag": "workbench-v1.8.2-rc.1",
   "release_id": "workbench-source-2026-09-03.v182-rc1",
   "channel": "pilot",
-  "status": "single_machine_candidate_not_batch_release",
+  "status": "verified_internal_pilot_not_batch_release",
   "platform": "windows",
   "supported_systems": ["Windows 10", "Windows 11"],
   "install_mode": "first_install",
@@ -25,5 +25,5 @@
   "customer_side_npm_install_or_build": false,
   "paid_calls_during_validation": 0,
   "external_uploads_during_validation": 0,
-  "real_machine_status": "github_windows_validation_pending"
+  "real_machine_status": "github_windows_clean_install_historical_upgrade_interrupted_recovery_web_launch_receipt_and_customer_modules_pass_run_33726229003"
 }

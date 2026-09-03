@@ -6,7 +6,7 @@
   "release_tag": "workbench-v1.8.2-rc.1",
   "release_id": "workbench-source-2026-09-03.v182-rc1",
   "channel": "pilot",
-  "status": "single_machine_candidate_not_batch_release",
+  "status": "verified_internal_pilot_not_batch_release",
   "platform": "macos",
   "supported_systems": ["macOS 13+"],
   "install_mode": "first_install",
@@ -25,5 +25,5 @@
   "customer_side_npm_install_or_build": false,
   "paid_calls_during_validation": 0,
   "external_uploads_during_validation": 0,
-  "real_machine_status": "macos_isolation_pass_installer_lifecycle_reused_from_rc3"
+  "real_machine_status": "macos_first_install_isolation_pass_with_rc3_verified_service_lifecycle"
 }
