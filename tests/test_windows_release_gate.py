@@ -114,6 +114,47 @@ class WindowsReleaseGateTests(unittest.TestCase):
         self.assertIn("customer module readiness failed", gate_script)
         self.assertNotIn("$LASTEXITCODE -ne 0 -or -not", gate_script)
 
+    def test_matching_windows_module_gate_passes(self) -> None:
+        package_hash = "b" * 64
+        report = {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "module_id": "xhs-jewelry-lightweight-upgrade",
+            "version": "0.5.0",
+            "platform": "windows",
+            "status": "pass",
+            "executed_on_windows": True,
+            "checks": dict(make_ticket.WINDOWS_MODULE_GATE_CHECKS),
+            "package_sha256": [package_hash],
+        }
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-module-gate.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            make_ticket.validate_windows_module_gate(
+                path, version="0.5.0", package_sha256={package_hash}
+            )
+
+    def test_windows_module_gate_requires_real_windows(self) -> None:
+        package_hash = "b" * 64
+        report = {
+            "schema_version": 1,
+            "product_id": "ai-content-workbench",
+            "module_id": "xhs-jewelry-lightweight-upgrade",
+            "version": "0.5.0",
+            "platform": "windows",
+            "status": "pass",
+            "executed_on_windows": False,
+            "checks": dict(make_ticket.WINDOWS_MODULE_GATE_CHECKS),
+            "package_sha256": [package_hash],
+        }
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / "windows-module-gate.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "身份或状态无效"):
+                make_ticket.validate_windows_module_gate(
+                    path, version="0.5.0", package_sha256={package_hash}
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

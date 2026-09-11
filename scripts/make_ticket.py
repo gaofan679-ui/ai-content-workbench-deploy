@@ -29,6 +29,14 @@ WINDOWS_GATE_CHECKS = {
     "web_workbench_launch": "passed",
     "post_install_receipt": "passed",
 }
+WINDOWS_MODULE_GATE_CHECKS = {
+    "historical_upgrade": "installed_and_verified",
+    "repeat_execution": "no_reinstall",
+    "existing_projects_materials_outputs_config": "preserved",
+    "formal_deployment_receipt": "passed",
+    "prebuilt_web_runtime": "passed",
+    "jewelry_skill_and_tutorial": "passed",
+}
 
 
 def fail(message: str) -> int:
@@ -65,6 +73,36 @@ def validate_windows_gate(
         raise ValueError("Windows 真机验收报告与本次 Windows 客户包不一致。")
 
 
+def validate_windows_module_gate(
+    report_path: Path,
+    *,
+    version: str,
+    package_sha256: set[str],
+) -> None:
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Windows 模块验收报告无法读取：{exc}") from exc
+    if (
+        report.get("schema_version") != 1
+        or report.get("product_id") != "ai-content-workbench"
+        or report.get("module_id") != "xhs-jewelry-lightweight-upgrade"
+        or report.get("platform") != "windows"
+        or report.get("status") != "pass"
+        or report.get("executed_on_windows") is not True
+    ):
+        raise ValueError("Windows 模块验收报告身份或状态无效。")
+    if report.get("version") != version:
+        raise ValueError("Windows 模块验收报告版本不一致。")
+    checks = report.get("checks") if isinstance(report.get("checks"), dict) else {}
+    for key, expected in WINDOWS_MODULE_GATE_CHECKS.items():
+        if checks.get(key) != expected:
+            raise ValueError(f"Windows 模块验收未通过：{key}")
+    reported_hashes = set(report.get("package_sha256") or [])
+    if reported_hashes != package_sha256:
+        raise ValueError("Windows 模块验收报告与本次 Windows 客户包不一致。")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="创建 AI 内容工作台客户部署票据")
     parser.add_argument("--customer-id", required=True)
@@ -78,6 +116,7 @@ def main() -> int:
     parser.add_argument("--expires-in-hours", type=int, required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--windows-gate-report")
+    parser.add_argument("--windows-module-gate-report")
     parser.add_argument("--allow-local-test", action="store_true")
     args = parser.parse_args()
 
@@ -143,14 +182,21 @@ def main() -> int:
         if artifact["platform"] == "windows"
     }
     if windows_hashes and not args.allow_local_test:
-        if not args.windows_gate_report:
-            return fail("包含 Windows 客户包时，必须提供已通过的 Windows 真机验收报告。")
+        if bool(args.windows_gate_report) == bool(args.windows_module_gate_report):
+            return fail("包含 Windows 客户包时，必须且只能提供一种 Windows 验收报告。")
         try:
-            validate_windows_gate(
-                Path(args.windows_gate_report).expanduser().resolve(),
-                version=next(iter(versions)),
-                package_sha256=windows_hashes,
-            )
+            if args.windows_module_gate_report:
+                validate_windows_module_gate(
+                    Path(args.windows_module_gate_report).expanduser().resolve(),
+                    version=next(iter(versions)),
+                    package_sha256=windows_hashes,
+                )
+            else:
+                validate_windows_gate(
+                    Path(args.windows_gate_report).expanduser().resolve(),
+                    version=next(iter(versions)),
+                    package_sha256=windows_hashes,
+                )
         except ValueError as exc:
             return fail(str(exc))
 

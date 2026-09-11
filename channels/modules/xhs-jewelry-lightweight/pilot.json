@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "product_id": "ai-content-workbench",
+  "module_id": "xhs-jewelry-lightweight-upgrade",
+  "channel": "pilot",
+  "updated_at": "2026-09-11T14:20:00+08:00",
+  "version": "0.5.0",
+  "release_tag": "module-xhs-jewelry-lightweight-v0.5.0",
+  "fallback_entry": "https://cdn.jsdelivr.net/gh/gaofan679-ui/ai-content-workbench-deploy@module-xhs-jewelry-lightweight-v0.5.0/CODEX_DEPLOYMENT.md",
+  "manifests": {
+    "macos": {
+      "incremental_upgrade": "releases/modules/xhs-jewelry-lightweight/v0.5.0/macos-upgrade.json"
+    },
+    "windows": {
+      "incremental_upgrade": "releases/modules/xhs-jewelry-lightweight/v0.5.0/windows-upgrade.json"
+    }
+  },
+  "first_install_supported": false,
+  "batch_release_allowed": false,
+  "stable_changed": false
+}

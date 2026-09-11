@@ -1,0 +1,63 @@
+name: windows-module-upgrade-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: Target module version
+        required: true
+        type: string
+      upgrade_sha256:
+        description: Windows module-upgrade package SHA-256
+        required: true
+        type: string
+      baseline_sha256:
+        description: Windows full-workbench baseline SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows-module-upgrade-gate:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      AICW_MODULE_BASELINE_URL: ${{ secrets.AICW_MODULE_BASELINE_URL }}
+      AICW_MODULE_UPGRADE_URL: ${{ secrets.AICW_MODULE_UPGRADE_URL }}
+      AICW_MODULE_TICKET_URL: ${{ secrets.AICW_MODULE_TICKET_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run installed-workbench upgrade and repeat execution
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:AICW_MODULE_BASELINE_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_MODULE_UPGRADE_URL) -or
+              [string]::IsNullOrWhiteSpace($env:AICW_MODULE_TICKET_URL)) {
+            throw "Windows module gate inputs are not configured."
+          }
+          & .\scripts\run_windows_module_upgrade_gate.ps1 `
+            -TargetVersion '${{ inputs.target_version }}' `
+            -BaselineUrl $env:AICW_MODULE_BASELINE_URL `
+            -BaselineSha256 '${{ inputs.baseline_sha256 }}' `
+            -UpgradeUrl $env:AICW_MODULE_UPGRADE_URL `
+            -UpgradeTicketUrl $env:AICW_MODULE_TICKET_URL `
+            -UpgradeSha256 '${{ inputs.upgrade_sha256 }}' `
+            -OutputRoot "$env:RUNNER_TEMP\aicw-windows-module-gate"
+      - name: Upload module-gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-module-upgrade-gate-${{ inputs.target_version }}
+          path: |
+            ${{ runner.temp }}\aicw-windows-module-gate\windows-module-upgrade-gate.json
+            ${{ runner.temp }}\aicw-windows-module-gate\evidence
+          if-no-files-found: warn
+          retention-days: 7
