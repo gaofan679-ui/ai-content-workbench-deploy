@@ -91,7 +91,12 @@ try {
   $env:AICW_DEPLOYER_STATE_ROOT = Join-Path $OutputRoot "deployer-state"
   & python.exe .\scripts\deploy.py apply --ticket $UpgradeTicketUrl --workbench $workspace --skills-home $skills --confirm-write YES *>&1 |
     Tee-Object -FilePath (Join-Path $EvidenceRoot "module-upgrade.log")
-  if ($LASTEXITCODE -ne 0) { throw "Module deployment failed with code $LASTEXITCODE." }
+  if ($LASTEXITCODE -ne 0) {
+    if (Test-Path -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -PathType Container) {
+      Copy-Item -LiteralPath $env:AICW_DEPLOYER_STATE_ROOT -Destination (Join-Path $EvidenceRoot "deployer-state") -Recurse -Force
+    }
+    throw "Module deployment failed with code $LASTEXITCODE."
+  }
 
   foreach ($entry in $sentinels.GetEnumerator()) {
     if (-not (Test-Path -LiteralPath $entry.Value -PathType Leaf)) { throw "Historical $($entry.Key) sentinel was removed." }
