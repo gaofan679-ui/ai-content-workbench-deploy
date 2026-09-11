@@ -106,7 +106,9 @@ try {
   $moduleReceipt = Join-Path $workspace "系统文件_无需打开\config\modules\xhs-jewelry-lightweight-upgrade.json"
   if (-not (Test-Path -LiteralPath $moduleReceipt -PathType Leaf)) { throw "Module receipt is missing." }
   $installed = Get-Content -LiteralPath $moduleReceipt -Raw -Encoding UTF8 | ConvertFrom-Json
-  if ([string]$installed.status -ne "installed_and_verified" -or [string]$installed.version -ne $TargetVersion) {
+  if ([string]$installed.module_id -ne "xhs-jewelry-lightweight-upgrade" -or
+      [string]$installed.version -ne $TargetVersion -or
+      [string]$installed.post_install_tree_verification -ne "passed") {
     throw "Module receipt identity is invalid."
   }
   $deploymentReceipts = @(Get-ChildItem -LiteralPath (Join-Path $workspace "系统文件_无需打开\deployment_receipts") -Filter "*.json" -File)
