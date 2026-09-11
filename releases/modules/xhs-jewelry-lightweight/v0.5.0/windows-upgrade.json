@@ -22,5 +22,7 @@
   "post_install_identity_actions": 31,
   "paid_calls_during_validation": 0,
   "external_uploads_during_validation": 0,
-  "validation_status": "pending_github_windows_historical_upgrade_and_repeat_gate"
+  "validation_status": "github_windows_historical_upgrade_repeat_and_data_preservation_pass",
+  "windows_gate_run_id": 34572289253,
+  "windows_gate_run_url": "https://github.com/gaofan679-ui/ai-content-workbench-deploy/actions/runs/34572289253"
 }
