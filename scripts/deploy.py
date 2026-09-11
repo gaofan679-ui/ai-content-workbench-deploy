@@ -1894,7 +1894,13 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 
 def run_upgrade(command: list[str]) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(command, text=True, capture_output=True)
+    result = subprocess.run(
+        command,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
     if result.returncode != 0:
         message = (result.stderr or result.stdout or "升级工具没有返回说明").strip()
         raise DeploymentError(f"升级工具阻塞：{message[-1200:]}")
