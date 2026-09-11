@@ -18,6 +18,16 @@ SPEC.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_module_upgrade_capture_always_decodes_utf8(self):
+        completed = mock.Mock(returncode=0, stdout="备份位置：C:\\测试", stderr="")
+        with mock.patch.object(deploy.subprocess, "run", return_value=completed) as runner:
+            result = deploy.run_upgrade(["python", "module_upgrade.py", "--check"])
+        self.assertIs(result, completed)
+        self.assertEqual(runner.call_args.kwargs["encoding"], "utf-8")
+        self.assertEqual(runner.call_args.kwargs["errors"], "replace")
+        self.assertTrue(runner.call_args.kwargs["text"])
+        self.assertTrue(runner.call_args.kwargs["capture_output"])
+
     def test_module_readiness_isolates_stale_personal_skill_roots(self):
         with tempfile.TemporaryDirectory() as name:
             workbench = Path(name) / "AIContentWorkbench"
