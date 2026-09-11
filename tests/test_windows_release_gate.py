@@ -155,6 +155,15 @@ class WindowsReleaseGateTests(unittest.TestCase):
                     path, version="0.5.0", package_sha256={package_hash}
                 )
 
+    def test_windows_module_gate_checks_internal_and_formal_receipts_separately(self) -> None:
+        gate_script = (ROOT / "scripts" / "run_windows_module_upgrade_gate.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('[string]$installed.module_id -ne "xhs-jewelry-lightweight-upgrade"', gate_script)
+        self.assertIn('[string]$installed.post_install_tree_verification -ne "passed"', gate_script)
+        self.assertIn('[string]$latest.status -ne "installed_and_verified"', gate_script)
+        self.assertNotIn('[string]$installed.status -ne "installed_and_verified"', gate_script)
+
 
 if __name__ == "__main__":
     unittest.main()
