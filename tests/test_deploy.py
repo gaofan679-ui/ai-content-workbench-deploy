@@ -18,6 +18,61 @@ SPEC.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_exact_completed_module_ticket_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as name:
+            workbench = Path(name) / "AIContentWorkbench"
+            skills = Path(name) / "skills"
+            ticket = {"ticket_id": "repeat-ticket"}
+            manifest = {
+                "package_contract": "module_upgrade_v1",
+                "module_id": "xhs-jewelry-lightweight-upgrade",
+                "version": "0.5.0",
+                "release_tag": "module-xhs-jewelry-lightweight-v0.5.0",
+                "release_id": "module-xhs-jewelry-2026-09-11.v050",
+                "platform": "windows",
+                "package_sha256": "a" * 64,
+            }
+            backup_record = workbench / "backups" / "backup_record.json"
+            backup_record.parent.mkdir(parents=True)
+            backup_record.write_text(json.dumps({"status": "installed"}), encoding="utf-8")
+            receipt = workbench / "系统文件_无需打开" / "deployment_receipts" / "repeat-ticket.json"
+            receipt.parent.mkdir(parents=True)
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "status": "installed_and_verified",
+                        "ticket_id": "repeat-ticket",
+                        "product_id": "ai-content-workbench",
+                        "version": "0.5.0",
+                        "release_tag": "module-xhs-jewelry-lightweight-v0.5.0",
+                        "release_id": "module-xhs-jewelry-2026-09-11.v050",
+                        "platform": "windows",
+                        "package_sha256": "a" * 64,
+                        "workbench": str(workbench),
+                        "skills_home": str(skills),
+                        "backup_record": str(backup_record),
+                        "post_install_tree_verification": "passed",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            module_receipt = workbench / "系统文件_无需打开" / "config" / "modules" / "xhs-jewelry-lightweight-upgrade.json"
+            module_receipt.parent.mkdir(parents=True)
+            module_receipt.write_text(
+                json.dumps(
+                    {
+                        "module_id": "xhs-jewelry-lightweight-upgrade",
+                        "version": "0.5.0",
+                        "post_install_tree_verification": "passed",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                deploy.existing_verified_module_receipt(workbench, skills, ticket, manifest),
+                receipt,
+            )
+
     def test_module_upgrade_capture_always_decodes_utf8(self):
         completed = mock.Mock(returncode=0, stdout="备份位置：C:\\测试", stderr="")
         with mock.patch.object(deploy.subprocess, "run", return_value=completed) as runner:

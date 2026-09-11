@@ -1917,6 +1917,53 @@ def backup_record_from_output(output: str) -> Path:
     raise DeploymentError("安装完成但没有找到备份与指纹核验记录。")
 
 
+def existing_verified_module_receipt(
+    workbench: Path,
+    skills_home: Path,
+    ticket: dict[str, Any],
+    manifest: dict[str, Any],
+) -> Path | None:
+    """Return the formal receipt when this exact module ticket already completed."""
+    if manifest.get("package_contract") != "module_upgrade_v1":
+        return None
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", str(ticket["ticket_id"]))
+    receipt = workbench / "系统文件_无需打开" / "deployment_receipts" / f"{safe_id}.json"
+    module_id = str(manifest.get("module_id") or "")
+    module_receipt = (
+        workbench / "系统文件_无需打开" / "config" / "modules" / f"{module_id}.json"
+    )
+    try:
+        formal = json.loads(receipt.read_text(encoding="utf-8-sig"))
+        installed = json.loads(module_receipt.read_text(encoding="utf-8-sig"))
+        backup_record = Path(str(formal.get("backup_record") or "")).expanduser().resolve()
+        backup = json.loads(backup_record.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    expected = {
+        "status": "installed_and_verified",
+        "ticket_id": ticket["ticket_id"],
+        "product_id": PRODUCT_ID,
+        "version": manifest["version"],
+        "release_tag": manifest["release_tag"],
+        "release_id": manifest["release_id"],
+        "platform": manifest["platform"],
+        "package_sha256": manifest["package_sha256"],
+        "workbench": str(workbench),
+        "skills_home": str(skills_home),
+        "post_install_tree_verification": "passed",
+    }
+    if any(formal.get(key) != value for key, value in expected.items()):
+        return None
+    if (
+        installed.get("module_id") != module_id
+        or installed.get("version") != manifest["version"]
+        or installed.get("post_install_tree_verification") != "passed"
+        or backup.get("status") != "installed"
+    ):
+        return None
+    return receipt
+
+
 def write_receipt(
     workbench: Path,
     skills_home: Path,
@@ -2611,12 +2658,34 @@ def apply(args: argparse.Namespace) -> int:
     if args.confirm_write != "YES":
         raise DeploymentError("尚未获得明确写入确认；当前没有下载或安装。")
     ticket, manifest, workbench, skills_home, detection = load_context(args)
+    ensure_ticket_time_window(ticket)
+    existing_receipt = existing_verified_module_receipt(
+        workbench, skills_home, ticket, manifest
+    )
+    if existing_receipt is not None:
+        print(
+            json.dumps(
+                {
+                    "customer_summary": customer_summary(
+                        manifest,
+                        detection,
+                        {"status": "ready", "tools": {}},
+                        phase="apply",
+                    ),
+                    "write_performed": False,
+                    "already_installed_and_verified": True,
+                    "next_step": "这张票据已完成，无需重复安装；重新打开工作台即可。",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
     attempts: dict[str, int] = {}
     resume_context: dict[str, Any] = {}
     stage = "context_validated"
     write_checkpoint(ticket, manifest, stage=stage, status="running", attempts=attempts)
     try:
-        ensure_ticket_time_window(ticket)
         environment = environment_report(manifest)
         if environment["status"] != "ready":
             attempts["dependency_bootstrap"] = 1
