@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "estimated_cost_cny", "artifacts", "requires_confirmation", "external_request_started", "user_message"],
+  "properties": {
+    "status": { "type": "string", "enum": ["completed", "needs_user_input", "blocked"] },
+    "summary": { "type": "string" },
+    "estimated_cost_cny": { "type": "number", "minimum": 0 },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "path", "published"],
+        "properties": {
+          "label": { "type": "string" },
+          "path": { "type": "string" },
+          "published": { "type": "boolean" }
+        }
+      }
+    },
+    "requires_confirmation": { "type": "boolean" },
+    "external_request_started": { "type": "boolean" },
+    "user_message": { "type": "string" }
+  }
+}

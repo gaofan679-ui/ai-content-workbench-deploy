@@ -1,0 +1,555 @@
+{
+  "schema_version": 2,
+  "candidate_id": "talking-webfix-local-prep-v3-20260913",
+  "status": "local_ready_not_dispatched",
+  "base_full_release": {
+    "version": "1.8.3-rc.3",
+    "release_id": "workbench-source-2026-09-08.v183-rc3",
+    "windows_first_install_sha256": "83ea9545f3be8fa4dc7e7b75a8f7d41b9ad2b4153a1fc7d379ef4932414b75ff"
+  },
+  "integrated_published_module": {
+    "module_id": "xhs-jewelry-lightweight-upgrade",
+    "version": "0.5.0",
+    "windows_upgrade_sha256": "46fe89d9a21d937831a3735537fb58f97d717d42f51f142c15c230f769952927"
+  },
+  "compatibility": {
+    "package_json_sha256": "f10dd5dda96a47d72d68e9bef5fba2b7c88b4d5e77ca1222a116d10e16dfe111"
+  },
+  "files": [
+    {
+      "source": "scripts/workbench-artifacts/skill_artifact_adapter.py",
+      "destination": "系统文件_无需打开/tools/scripts/workbench-artifacts/skill_artifact_adapter.py",
+      "sha256": "59b684fd523ffef3b634c514a990a906c935ef1f5647c69b5102a47cde0d366e"
+    },
+    {
+      "source": "scripts/workbench-setup/setup_status.py",
+      "destination": "系统文件_无需打开/tools/scripts/workbench-setup/setup_status.py",
+      "sha256": "dbbaec653924c77938da5c059ca8c2d28c743df62d62d3339d4828368624312d"
+    },
+    {
+      "source": "web-workbench/app/chatgpt-auth.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/chatgpt-auth.ts",
+      "sha256": "4265a2e7c2dcb3a6f4b7026f762bf5b6e4caec76cc13c0a45987ee9a9f2e42cc"
+    },
+    {
+      "source": "web-workbench/app/globals.css",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/globals.css",
+      "sha256": "3ab6efd235efe1d9313ca1a9db316bf776e55a0e6e77ce9b09a67f28403af185"
+    },
+    {
+      "source": "web-workbench/app/jewelry-request.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/jewelry-request.mjs",
+      "sha256": "b988507f3f58d8ca00209788a4847c8e1d04f8a707321a953a0dcde5ea8f4d8e"
+    },
+    {
+      "source": "web-workbench/app/layout.tsx",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/layout.tsx",
+      "sha256": "34e52fbaeed092de003d7c3f2f88b8505f08e46e3c22bb85769ecd4ba5f8dcc7"
+    },
+    {
+      "source": "web-workbench/app/light-theme.css",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/light-theme.css",
+      "sha256": "6dddb0502bd7148cc3d19501d29ee079b68a3c12249e2d254d2516a4e5c17d14"
+    },
+    {
+      "source": "web-workbench/app/model-asset-studio.tsx",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/model-asset-studio.tsx",
+      "sha256": "4ed349d3231547a886d86ab18e00e3b9f9856efe7730c6427ca3fe8846794140"
+    },
+    {
+      "source": "web-workbench/app/page.tsx",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/page.tsx",
+      "sha256": "4b9d1fbfe3c95220ad0de4994fb17dfc3539d394959cfb82c44c031ebac75693"
+    },
+    {
+      "source": "web-workbench/app/talking-presentation.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/talking-presentation.ts",
+      "sha256": "83cbf133d4819f2f61243eaeb33c77c86270f545fe8dfefd333a440731f90a7d"
+    },
+    {
+      "source": "web-workbench/app/use-dialog-focus.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/use-dialog-focus.ts",
+      "sha256": "d3f789d47c4417dd3fca846c38afe4edc912e97965003f02a7ebacca6e5b8ce2"
+    },
+    {
+      "source": "web-workbench/app/workspace-icon.tsx",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/workspace-icon.tsx",
+      "sha256": "00c000fb37b8f1ccd959f5ac0b08fc95a2130c516020905ff3242458d6d2c1f1"
+    },
+    {
+      "source": "web-workbench/app/workspace-visual.css",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/workspace-visual.css",
+      "sha256": "157aad293b3714fa2cc1bed64422befe75970b12d06cb0e34b5f39ab43f00ad8"
+    },
+    {
+      "source": "web-workbench/app/xhs-jewelry-studio.tsx",
+      "destination": "系统文件_无需打开/tools/web-workbench/app/xhs-jewelry-studio.tsx",
+      "sha256": "df31b26d5053f8313712a4bac446e72ea5f9b658c4dcd883fe0751e079660e45"
+    },
+    {
+      "source": "web-workbench/browser-companion/chatgpt-web/README.md",
+      "destination": "系统文件_无需打开/tools/web-workbench/browser-companion/chatgpt-web/README.md",
+      "sha256": "3238daccbe4a5d0a8fb0d5e341e568987c0ef1be6f45c099672e5807a696fc62"
+    },
+    {
+      "source": "web-workbench/browser-companion/chatgpt-web/content-script.js",
+      "destination": "系统文件_无需打开/tools/web-workbench/browser-companion/chatgpt-web/content-script.js",
+      "sha256": "c71457f871bd19480e05911e8551e20d96ffec2cc1c7b6a335842d264bf0a216"
+    },
+    {
+      "source": "web-workbench/browser-companion/chatgpt-web/manifest.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/browser-companion/chatgpt-web/manifest.json",
+      "sha256": "f45b4d31ced8dae831af6129bbf1194744e48eb8ae77e2134bef8059a498e148"
+    },
+    {
+      "source": "web-workbench/browser-companion/chatgpt-web/service-worker.js",
+      "destination": "系统文件_无需打开/tools/web-workbench/browser-companion/chatgpt-web/service-worker.js",
+      "sha256": "0d9048578fcbb4d933cb28bfa52bd1936fef4591a07fa904118d3c757d8295a7"
+    },
+    {
+      "source": "web-workbench/browser-companion/chatgpt-web/tab-selection.js",
+      "destination": "系统文件_无需打开/tools/web-workbench/browser-companion/chatgpt-web/tab-selection.js",
+      "sha256": "35948ecc06cb36283a5e94d5a6f5bd7da8e5afbd6005d0a9edb30dd79c4895ba"
+    },
+    {
+      "source": "web-workbench/build/sites-vite-plugin.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/build/sites-vite-plugin.ts",
+      "sha256": "81b7cbfaeb970611572256aba0e313425beb3809f6426f63750696c15d9c756b"
+    },
+    {
+      "source": "web-workbench/db/index.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/db/index.ts",
+      "sha256": "dc7610b00b918e0ffff1360a63626f16655ced3064b2eaf96095a4101fb14bcd"
+    },
+    {
+      "source": "web-workbench/db/schema.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/db/schema.ts",
+      "sha256": "13ddacbf0be50e054d450a6c642b7fdc1aa943fd6b99084711e07e58b600390d"
+    },
+    {
+      "source": "web-workbench/next-env.d.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/next-env.d.ts",
+      "sha256": "a291a6b60536fec0a3b9d4ffd6d51179b463e9bc20281d7499d756813b4c07d5"
+    },
+    {
+      "source": "web-workbench/next.config.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/next.config.ts",
+      "sha256": "614bce25b089c3f19b1e17a6346c74b858034040154c6621e7d35303004767cc"
+    },
+    {
+      "source": "web-workbench/package.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/package.json",
+      "sha256": "f10dd5dda96a47d72d68e9bef5fba2b7c88b4d5e77ca1222a116d10e16dfe111"
+    },
+    {
+      "source": "web-workbench/postcss.config.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/postcss.config.mjs",
+      "sha256": "dfac7ac2d86d326a0e5adb024e7943c181393ed17a5fcb8f0315b24c7da6ddde"
+    },
+    {
+      "source": "web-workbench/public/favicon.svg",
+      "destination": "系统文件_无需打开/tools/web-workbench/public/favicon.svg",
+      "sha256": "e6d2e59b7b5bbb0342e0fb496dfc262decbfe4426bbb7b047aec8d467d1dc6f7"
+    },
+    {
+      "source": "web-workbench/public/file.svg",
+      "destination": "系统文件_无需打开/tools/web-workbench/public/file.svg",
+      "sha256": "1e0ae4d1a1ddfa36752988647b731e4abf150c414d069ec83c96fb0aaeff0307"
+    },
+    {
+      "source": "web-workbench/public/globe.svg",
+      "destination": "系统文件_无需打开/tools/web-workbench/public/globe.svg",
+      "sha256": "d051a8c47936990a9085693d307bb7cea1bc1b6d7ed956bcbaacf674f4ec96b9"
+    },
+    {
+      "source": "web-workbench/public/window.svg",
+      "destination": "系统文件_无需打开/tools/web-workbench/public/window.svg",
+      "sha256": "decf1cf7bb22b5c99c4857cfcd5718ce5465c4454166317589c83fc73df74b66"
+    },
+    {
+      "source": "web-workbench/runtime/boutique-dual-anchor-runner.py",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/boutique-dual-anchor-runner.py",
+      "sha256": "69ea87fdbb631083884f7e44f434d8572ade0bc8e1045d49129b2a9b9026713f"
+    },
+    {
+      "source": "web-workbench/runtime/boutique-static-camera-reference-runner.py",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/boutique-static-camera-reference-runner.py",
+      "sha256": "58bdace863bfad12d0ff8d50f4d7c95e6a989538e69cc296ea415ed7f91a26aa"
+    },
+    {
+      "source": "web-workbench/runtime/boutique-structured-camera-runner.py",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/boutique-structured-camera-runner.py",
+      "sha256": "988ef320b1c9f91e67100162fd6899850c678ab5baa37998875034019929293d"
+    },
+    {
+      "source": "web-workbench/runtime/chatgpt-web-bridge.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/chatgpt-web-bridge.mjs",
+      "sha256": "17fd74139f3e0b9ba9c750d2409758fe71e2af97192600389414cf4bdc479b7f"
+    },
+    {
+      "source": "web-workbench/runtime/chatgpt-web-generator.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/chatgpt-web-generator.mjs",
+      "sha256": "afa454118c8cbe4f5b991ead1cb7c8136d83e2bb733b17a7d300a7fe58ec8dc5"
+    },
+    {
+      "source": "web-workbench/runtime/codex-execution-supervisor.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/codex-execution-supervisor.mjs",
+      "sha256": "b360694bf17879fa5a2036c3ec6d2bbcbb1d7b8d33b9b83d459cc25e5b8d9558"
+    },
+    {
+      "source": "web-workbench/runtime/codex-project-task.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/codex-project-task.mjs",
+      "sha256": "081c1b452b99bc87cd14606d9d84c86f8236842e5fa5e7fc6c5118c3e4b71384"
+    },
+    {
+      "source": "web-workbench/runtime/codex-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/codex-runner.mjs",
+      "sha256": "008588934f94378ba82d80505cde141760ccfebee0b42455a7394afb95fc3b4d"
+    },
+    {
+      "source": "web-workbench/runtime/copilot-output-schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/copilot-output-schema.json",
+      "sha256": "ae3ea6a513a7d1194203d4405135333625ff85ca2d5d9809ff47390445055d4b"
+    },
+    {
+      "source": "web-workbench/runtime/copilot-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/copilot-runner.mjs",
+      "sha256": "2bb8dd32f4e2ed120278d05fc5370c93062203c12896a612de32ccb1ec1935d6"
+    },
+    {
+      "source": "web-workbench/runtime/db.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/db.mjs",
+      "sha256": "6fa6a9bed05f2c5fcd2ab21cfd84194dc9c7f459bd58f9ca1e6f059ae83d3fe5"
+    },
+    {
+      "source": "web-workbench/runtime/dialect-draft-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/dialect-draft-runner.mjs",
+      "sha256": "f4abae16b4eb9ce1a78877c9ef4ee186423e57678c198d11bbb216a102c1bc2f"
+    },
+    {
+      "source": "web-workbench/runtime/dialect-draft-schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/dialect-draft-schema.json",
+      "sha256": "df8a3389742826b08d4b0d437f120423164be44369225492659c0536f9f35df0"
+    },
+    {
+      "source": "web-workbench/runtime/doubao-runtime-bridge.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/doubao-runtime-bridge.mjs",
+      "sha256": "3fffea3fcfe03ad84553485c6687024b520d1ada7c5e8741fb5a459a65b3bf08"
+    },
+    {
+      "source": "web-workbench/runtime/generation-evidence-projection.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/generation-evidence-projection.mjs",
+      "sha256": "a342fb75ce571a27fd9ab097164dda3b8ff345c24b9e929ef59f8e0d8510c751"
+    },
+    {
+      "source": "web-workbench/runtime/generation-pack-compiler.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/generation-pack-compiler.mjs",
+      "sha256": "18268e2dcc50a686dc37e1f7b331a222a6a7e1dac246d22a54c7ba6f25380587"
+    },
+    {
+      "source": "web-workbench/runtime/generation-pack-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/generation-pack-runner.mjs",
+      "sha256": "f7d274f625c12f7cf6695f0abcb3ac709c9814aa27b399a91faad685f1021bf4"
+    },
+    {
+      "source": "web-workbench/runtime/image-grid-contract.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/image-grid-contract.mjs",
+      "sha256": "44341c0374b2dd3031895ae82f924de12607cc4c9710d2846ae92bd3e8020e8f"
+    },
+    {
+      "source": "web-workbench/runtime/libtv-video-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/libtv-video-runner.mjs",
+      "sha256": "cd91209dc8b84bb483e7f9e55687a9f35a1b6778594c74ae8cab01e77e535261"
+    },
+    {
+      "source": "web-workbench/runtime/load-customer-env.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/load-customer-env.mjs",
+      "sha256": "dc9e8f6b0715320592944d0e5b088516eb1e6a682993be5ab97b12bdf39d63bf"
+    },
+    {
+      "source": "web-workbench/runtime/model-asset-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/model-asset-runner.mjs",
+      "sha256": "461834c0649fa0b92aad843fd726f557d7fc63715d931336769d6703be542a9c"
+    },
+    {
+      "source": "web-workbench/runtime/model-assets.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/model-assets.mjs",
+      "sha256": "370a11c87d39c4a748fb7a1c18a050d203e4213bbc23be1ba006e1efcbedb44a"
+    },
+    {
+      "source": "web-workbench/runtime/model-style-analysis-output-schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/model-style-analysis-output-schema.json",
+      "sha256": "13f53de8941c3cb4f7d908cd32d11240443889514099269aa2caa0b3338c8fb1"
+    },
+    {
+      "source": "web-workbench/runtime/model-style-analysis-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/model-style-analysis-runner.mjs",
+      "sha256": "9f4819d3d2646a6dbcf5e505b7b972b31086af70149368385b97a89be7579f56"
+    },
+    {
+      "source": "web-workbench/runtime/motion-preflight-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/motion-preflight-runner.mjs",
+      "sha256": "712e10ed6a87d8580999d58290ce219bff44bc25f6dcc065936bf2a984cda3ca"
+    },
+    {
+      "source": "web-workbench/runtime/native-composition-anchor-runner.py",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/native-composition-anchor-runner.py",
+      "sha256": "d78112cd6c2d74f674a116b36daba92a75eca0ef468090a260ff2a0949c1dad8"
+    },
+    {
+      "source": "web-workbench/runtime/native-composition-first-last-runner.py",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/native-composition-first-last-runner.py",
+      "sha256": "35ac282c74b04e9d6e279aff0efac263f1a01f8e9513bd3432c45bd929503cf5"
+    },
+    {
+      "source": "web-workbench/runtime/output-schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/output-schema.json",
+      "sha256": "b5d290efb53c083830687c3a3f1a186cc56391cd89a8bc57502a40868ec0555c"
+    },
+    {
+      "source": "web-workbench/runtime/person-material-repair.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-material-repair.mjs",
+      "sha256": "0e451d228978c5750eb6644055199c33ca46d2f88ee4940e37ca7997c7cc7bc3"
+    },
+    {
+      "source": "web-workbench/runtime/person-package-output-schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-package-output-schema.json",
+      "sha256": "c07e8111f5dd9d4ab44f60d8b7365f89636a4bcc91b4a3296a80e03ba92a7f92"
+    },
+    {
+      "source": "web-workbench/runtime/person-package-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-package-runner.mjs",
+      "sha256": "8e149935609835d8a683c51629e146dc9334fae9a9683540b4c4ebf8973c857d"
+    },
+    {
+      "source": "web-workbench/runtime/person-package-web-asset-generator.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-package-web-asset-generator.mjs",
+      "sha256": "5ce9f788b2fa0b59c2099c9d8b0fdf49f2c658835addf6c2870488fc0025f1f9"
+    },
+    {
+      "source": "web-workbench/runtime/person-publication.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-publication.mjs",
+      "sha256": "c6d7ef9edb1108887cc08d2140189176195c295704d48a78aa93c7dc198215f5"
+    },
+    {
+      "source": "web-workbench/runtime/person-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/person-runner.mjs",
+      "sha256": "1528ead0732abc10596b997c2450a6f56f0aa63d2eebc7e91b36fe5782e881f2"
+    },
+    {
+      "source": "web-workbench/runtime/portable-paths.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/portable-paths.mjs",
+      "sha256": "956d21aba8c58fb90fbba9aeb15e4ac1e4b0437e7bbb4d0402c051cd1e45cbc4"
+    },
+    {
+      "source": "web-workbench/runtime/product-assets-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/product-assets-runner.mjs",
+      "sha256": "0f438047a60aef87b1d3e33e2ace3dd6fdab78b77034d6b800f4a5b8f3be77fa"
+    },
+    {
+      "source": "web-workbench/runtime/real-person-stage-contracts.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/real-person-stage-contracts.mjs",
+      "sha256": "78b1d738acc25e9ee9fd47805d4ac98e4cde8eaaa0a4e99cc1e187741598974c"
+    },
+    {
+      "source": "web-workbench/runtime/runninghub-h3-video-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/runninghub-h3-video-runner.mjs",
+      "sha256": "b659de9c79f645eca197ed5dc46a502818230ccb48ae0144f982918669319501"
+    },
+    {
+      "source": "web-workbench/runtime/runninghub-runtime-bridge.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/runninghub-runtime-bridge.mjs",
+      "sha256": "7e270f750a0c2b8104e0b2df28c3bdfb558bbca1d255d7cd6b1f9530b8557873"
+    },
+    {
+      "source": "web-workbench/runtime/server.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/server.mjs",
+      "sha256": "23057109b128ce57a527c9e955ddf4f357a11ad35ca3cb28d4f9c30a215c672a"
+    },
+    {
+      "source": "web-workbench/runtime/skill-contract-bridge.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/skill-contract-bridge.mjs",
+      "sha256": "aba0e77a008d49636abc363ea305c2751f266cafb0e1996c4538a0cc67d2c6b3"
+    },
+    {
+      "source": "web-workbench/runtime/social-extract-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/social-extract-runner.mjs",
+      "sha256": "aa026d80423267bdd302f739c53f336540c0724a2afd5671e733e98dcac29c72"
+    },
+    {
+      "source": "web-workbench/runtime/stage-execution-receipt.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/stage-execution-receipt.mjs",
+      "sha256": "9551357ca2c7fedb5aee16d1afca3c107227e43625fadd838f990038c627d2a0"
+    },
+    {
+      "source": "web-workbench/runtime/storyboard-contract.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/storyboard-contract.mjs",
+      "sha256": "fa1bc202cc5dda06a18bfa31794e9e9d27565b003cec90d5295c277d71761b79"
+    },
+    {
+      "source": "web-workbench/runtime/storyboard-ratio.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/storyboard-ratio.mjs",
+      "sha256": "b00f0cc47bc91509156452dcc9ae0e31f4986bdaf3f53e20334ad94194f51002"
+    },
+    {
+      "source": "web-workbench/runtime/storyboard-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/storyboard-runner.mjs",
+      "sha256": "4751630242c01bf33d6dcac761faf2d8c16836ae3e940d41c886b7879e5350fd"
+    },
+    {
+      "source": "web-workbench/runtime/talking-configuration.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/talking-configuration.mjs",
+      "sha256": "50a7aafe5d74030bb53cc184d4f5eaa1b203cef3ce621ae376e7fe51de1ccbd7"
+    },
+    {
+      "source": "web-workbench/runtime/talking-head-person-assets.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/talking-head-person-assets.mjs",
+      "sha256": "6a071303275f0a656df0e5130bdc5fbd623352cb34c6b20857e3d3afd9ebd982"
+    },
+    {
+      "source": "web-workbench/runtime/talking-head-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/talking-head-runner.mjs",
+      "sha256": "5f2ea57ac2f55786d21eb98a0de7bfeceeb43f7a0318b6d849efb63b8cd8a9f4"
+    },
+    {
+      "source": "web-workbench/runtime/task-user-state.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/task-user-state.mjs",
+      "sha256": "8206aee3351d86b273c60e40349c178606fc365ba21a2cee4862579369b35250"
+    },
+    {
+      "source": "web-workbench/runtime/user-progress.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/user-progress.mjs",
+      "sha256": "6ba43ac776a3eda81ad99b12ea28b249160cfad0b8d878f10a45bbf90e0e2227"
+    },
+    {
+      "source": "web-workbench/runtime/video-generation-options.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/video-generation-options.mjs",
+      "sha256": "4295fe572fe912742c9467bb7677c6970f87ea57f8fc597ad5ec3fd5225ec741"
+    },
+    {
+      "source": "web-workbench/runtime/video-prompt-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/video-prompt-runner.mjs",
+      "sha256": "11ceda3fba9770836cc464d3bd3bd956aede3e8811d0c67b9e45200614ad80f9"
+    },
+    {
+      "source": "web-workbench/runtime/video-qc-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/video-qc-runner.mjs",
+      "sha256": "58f94b87d0966b1775da9ff5ac6564cf9b6cc0bb5914039a7d1924d8148ee11f"
+    },
+    {
+      "source": "web-workbench/runtime/video-rework-plan.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/video-rework-plan.mjs",
+      "sha256": "4d46bc593205c8d75a6c960b100e870979271e6f6c089b47f7939724c5090642"
+    },
+    {
+      "source": "web-workbench/runtime/workflow-handoff.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/workflow-handoff.mjs",
+      "sha256": "c8bd3a03683a6d412c733efe8b4d7c382336eede07a3512ebce538f1c120e744"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-artifact-route.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-artifact-route.mjs",
+      "sha256": "ebe4d2f92258a495f6b695b5cc9beb07bef2182d219070b482af84a6bab720ec"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-product-pack.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-product-pack.mjs",
+      "sha256": "a73872ab1b62ee87190613ab8058edbcbed9e7abd5b8e2a61b89cb1e01facf2f"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-runner.mjs",
+      "sha256": "7c4d5cae0e6b4c07b252b2dedc9bc4e670fe3b1eb393fd86733479d5d2f947c0"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-structure-plan.schema.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-structure-plan.schema.json",
+      "sha256": "3b27a53092d695a10e977ffa33a9ed1a4433a0b9608ea4c9b368ee7af933c442"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-tasks.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-tasks.mjs",
+      "sha256": "abaf40a310065c7cebcf7f5868df9d651f41f0981fb5631c249819c42e57cfa4"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-video-runner.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-video-runner.mjs",
+      "sha256": "b9eb5ee2d2744dd208ea25d66f138b4d3c0f8f40b55a707046e856817bfe9160"
+    },
+    {
+      "source": "web-workbench/runtime/xhs-jewelry-web-generator.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/runtime/xhs-jewelry-web-generator.mjs",
+      "sha256": "7fa227e13280135ea91d9c19737dae405191a586d4f3c109768c9cf544526837"
+    },
+    {
+      "source": "web-workbench/service/verify-prebuilt-runtime.mjs",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/verify-prebuilt-runtime.mjs",
+      "sha256": "b712199a91ff8dad6a7cbc865177eb65d446f5c59d607021d9a6a8cfbb410ed2"
+    },
+    {
+      "source": "web-workbench/service/windows/build-web-workbench.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/build-web-workbench.ps1",
+      "sha256": "46cdb189e470e146c672777584e4fe352b39ae425ff281887a421027d29bd536"
+    },
+    {
+      "source": "web-workbench/service/windows/complete-workbench-setup.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/complete-workbench-setup.ps1",
+      "sha256": "030295c09cdaf15e3647210ed6a36b95872a85989ff0aca77e00e6ecd656598a"
+    },
+    {
+      "source": "web-workbench/service/windows/configure-workbench.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/configure-workbench.ps1",
+      "sha256": "b0538e905c4c2a9df02b0928603ecd035572ee6ab1445ac2758128f297fbd32b"
+    },
+    {
+      "source": "web-workbench/service/windows/install-services.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/install-services.ps1",
+      "sha256": "fe02a29c89a10990baa4748de1a79fcfda71a94b1df43628907ff0529954993a"
+    },
+    {
+      "source": "web-workbench/service/windows/open-workbench.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/open-workbench.ps1",
+      "sha256": "e94a283442b6cd52f019bc7823c4356b4a6959926c709dc5b528804c0ab6206f"
+    },
+    {
+      "source": "web-workbench/service/windows/start-services.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/start-services.ps1",
+      "sha256": "9ec082ae68d85bf75b2a39ba0b5f1d40bf7a4f557e82d814448fe73545e70a9b"
+    },
+    {
+      "source": "web-workbench/service/windows/stop-services.ps1",
+      "destination": "系统文件_无需打开/tools/web-workbench/service/windows/stop-services.ps1",
+      "sha256": "dc24a0286f2f839a508415dc9f278f2ad67e8b22df1d1fa5449294248bc88817"
+    },
+    {
+      "source": "web-workbench/tsconfig.json",
+      "destination": "系统文件_无需打开/tools/web-workbench/tsconfig.json",
+      "sha256": "379054f6cec60ebd0e18c47a3ce72b2cc1b3f7abd0037c668e87cb2070891147"
+    },
+    {
+      "source": "web-workbench/vite.config.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/vite.config.ts",
+      "sha256": "f7c14b8a38546bb6a7ec93cba22f8e8f131da9fbfe8b39327422ed5bb98d4613"
+    },
+    {
+      "source": "web-workbench/worker/index.ts",
+      "destination": "系统文件_无需打开/tools/web-workbench/worker/index.ts",
+      "sha256": "2ed36d7fa996e946d9d7695c5925e7760246f6bf8fa35c06f1bc515c087dc450"
+    }
+  ],
+  "dist": {
+    "archive": "candidate-dist.tar.gz",
+    "archive_sha256": "88bb3cb337e358a433fa528ed84ab7e690ad99825de740d82734c40edbf0aa86",
+    "archive_size": 743688,
+    "file_count": 66,
+    "critical_sha256": {
+      "dist/server/index.js": "c063aa93152026d19f33d9b710202d5401514f5d2fa7dedd2573234b8febe7a0",
+      "dist/server/BUILD_ID": "c54a334e47fc312597950c6a0b146a0508ac049263766fea7f0c9b1d3bbef587",
+      "dist/client/vinext-client-entry-manifest.json": "d00ad0d91af9a7e796687e67a63efdb0e13113e8e1f5cd32097c0552c8b7ccf2"
+    }
+  },
+  "external_uploads": 0,
+  "provider_calls": 0,
+  "customer_runtime_data_included": false,
+  "mac_generated_service_files_included": false
+}

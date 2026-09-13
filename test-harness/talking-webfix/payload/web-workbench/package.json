@@ -1,0 +1,56 @@
+{
+  "name": "one-content-team-visual-workbench-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n runtime,web -c blue,cyan \"npm:dev:runtime\" \"npm:dev:web\"",
+    "dev:web": "vinext dev",
+    "dev:runtime": "node runtime/server.mjs",
+    "runtime": "node runtime/server.mjs",
+    "build": "vinext build",
+    "start": "vinext start",
+    "test": "npm run test:core && npm run test:browser",
+    "test:core": "node --test tests/runtime.test.mjs tests/http-flow.test.mjs tests/storyboard-ratio.test.mjs tests/image-grid-contract.test.mjs tests/copilot.test.mjs tests/talking-head-runner.test.mjs tests/talking-presentation.test.mjs tests/dialect-draft-runner.test.mjs tests/dialect-draft-http.test.mjs tests/xhs-jewelry.test.mjs tests/windows-build-contract.test.mjs && npm run build && node --test tests/rendered-html.test.mjs",
+    "test:browser": "playwright test",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern release-center/backups"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260811.1": true
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.52.1",
+    "@eslint/js": "9.39.4",
+    "@next/eslint-plugin-next": "16.2.6",
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "concurrently": "9.2.4",
+    "eslint": "9.39.4",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "16.4.0",
+    "react-server-dom-webpack": "^19.2.8",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.59.3",
+    "vinext": "1.0.0-beta.2",
+    "vite": "8.2.1",
+    "wrangler": "4.123.0"
+  },
+  "type": "module"
+}

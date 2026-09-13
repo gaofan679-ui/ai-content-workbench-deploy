@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["answer", "current_state", "next_step", "risk_note"],
+  "properties": {
+    "answer": { "type": "string" },
+    "current_state": { "type": "string", "enum": ["processing", "confirmation", "assistance"] },
+    "next_step": { "type": "string" },
+    "risk_note": { "type": "string" }
+  }
+}

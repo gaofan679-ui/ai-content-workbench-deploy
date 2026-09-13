@@ -1,0 +1,47 @@
+/* Shared desktop visual lessons, adapted to the web shell and existing routes. */
+.app-shell .sidebar :is(.nav-list,.workflow-nav) button { display:flex; align-items:center; gap:12px; min-height:44px; font-size:14px; font-weight:550; padding:10px 12px; text-align:left; border-radius:9px; }
+.app-shell .sidebar :is(.nav-icon,.mini-icon) { display:grid; place-items:center; width:22px; height:22px; flex:0 0 22px; margin:0; background:transparent; border:0; border-radius:0; color:inherit; box-shadow:none; }
+.app-shell .sidebar svg { flex:none; width:20px; height:20px; }
+.app-shell .sidebar :is(.nav-list,.workflow-nav) button.active { background:#14213b; color:#abc5ff; box-shadow:none; border-color:transparent; }
+.app-shell .sidebar :is(.nav-list,.workflow-nav) button.active::before { display:none; }
+.app-shell .sidebar :is(.nav-list,.workflow-nav) button:focus-visible { outline:2px solid #6493ff; outline-offset:-2px; }
+.app-shell .home-workflow-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.app-shell .home-workflow-card { min-height:108px; padding:20px; gap:14px; border-radius:12px; box-shadow:none; }
+.app-shell .home-workflow-card strong { font-size:15px; line-height:1.5; }
+.app-shell .home-workflow-card small { font-size:13px; line-height:1.65; white-space:normal; }
+.app-shell .home-workflow-card .workflow-icon { display:grid; place-items:center; width:38px; height:38px; flex:none; border:0; background:#2452ff18; color:#79a3ff; }
+.app-shell .home-workflow-card:hover { transform:none; }
+.app-shell .content { max-width:1400px; margin-inline:auto; }
+.app-shell[data-theme="light"] .sidebar { top:12px; left:12px; bottom:12px; height:calc(100vh - 24px); width:220px; border-radius:16px; border:1px solid #ffffff; background:linear-gradient(125deg,#ffffffc9,#ffffff85); box-shadow:inset 0 1px #fff,0 8px 26px #355a9d12; }
+.app-shell[data-theme="light"] .brand-mark { box-shadow:none; }
+.app-shell[data-theme="light"] .sidebar :is(.nav-list,.workflow-nav) button { color:#52627a; }
+.app-shell[data-theme="light"] .sidebar :is(.nav-list,.workflow-nav) button.active { background:#eaf0ff; color:#2249ba; box-shadow:none; border-color:transparent; }
+.app-shell[data-theme="light"] .sidebar :is(.nav-list,.workflow-nav) button:not(.active):hover { background:#dce6f54d; color:#283f64; }
+.app-shell[data-theme="light"] .home-workflow-card .workflow-icon { color:#2452df; background:#edf2ff; }
+.app-shell[data-theme="light"] .home-workflow-card:hover { background:#f7faff; border-color:#93adee; }
+.app-shell[data-theme="light"] :is(.segmented-control button.selected,.source-route-card.selected) { background:#eaf0ff; color:#173f9b; border-color:#789de9; box-shadow:none; }
+@media(min-width:761px) and (max-width:1100px) {
+ .app-shell .sidebar { width:190px; padding:20px 10px; }
+ .app-shell[data-theme="light"] .sidebar { width:178px; }
+ .app-shell .workspace { margin-left:202px; width:calc(100% - 202px); }
+ .app-shell .brand > div:last-child,.app-shell .nav-list .nav-label,.app-shell .workflow-nav button > span,.app-shell .sidebar-label { display:block; }
+ .app-shell .nav-list button { justify-content:flex-start; }
+ .app-shell .brand { padding-left:0; gap:8px; }
+ .app-shell .brand strong { font-size:14px; }
+ .app-shell .brand small { font-size:11px; }
+ .app-shell .content { padding:26px 22px 40px; }
+}
+@media(max-width:760px) {
+ .app-shell[data-theme="light"] .sidebar { left:6px; width:62px; padding:12px 6px; }
+ .app-shell .sidebar .brand > div:last-child,.app-shell .sidebar .nav-label,.app-shell .sidebar .workflow-nav button > span { display:none; }
+ .app-shell .sidebar :is(.nav-list,.workflow-nav) button { justify-content:center; padding:8px; }
+ .app-shell .home-workflow-grid { grid-template-columns:1fr; }
+}
+.app-shell .sidebar .nav-list .nav-label { font-size:14px; line-height:1.5; }
+.app-shell[data-theme="light"] .mock-video > em { background:#eaf0ff; color:#2451b2; }
+@media(min-width:761px) and (max-width:1100px) {
+ .app-shell .runtime-state div,.app-shell .companion-state div { display:block; }
+ .app-shell .sidebar-bottom { margin-top:auto; }
+}
+/* Palette changes must not interpolate through low-contrast grey states. */
+.app-shell .sidebar :is(.nav-list,.workflow-nav) button,.app-shell .theme-toggle { transition:none; }

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "category",
+    "rigidity",
+    "core_failure_risk",
+    "identity_tiers",
+    "forbidden_misreads",
+    "visual_observations",
+    "unknowns",
+    "panels"
+  ],
+  "properties": {
+    "category": { "type": "string" },
+    "rigidity": { "type": "string", "enum": ["rigid", "flexible", "mixed", "unknown"] },
+    "core_failure_risk": { "type": "string" },
+    "identity_tiers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier_1", "tier_2", "tier_3"],
+      "properties": {
+        "tier_1": { "type": "array", "items": { "type": "string" }, "maxItems": 6 },
+        "tier_2": { "type": "array", "items": { "type": "string" }, "maxItems": 6 },
+        "tier_3": { "type": "array", "items": { "type": "string" }, "maxItems": 6 }
+      }
+    },
+    "forbidden_misreads": { "type": "array", "items": { "type": "string" }, "maxItems": 8 },
+    "visual_observations": { "type": "array", "items": { "type": "string" }, "maxItems": 8 },
+    "unknowns": { "type": "array", "items": { "type": "string" }, "maxItems": 8 },
+    "panels": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["panel", "source_order", "focus", "crop"],
+        "properties": {
+          "panel": { "type": "string", "enum": ["A", "B", "C", "D", "E"] },
+          "source_order": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "focus": { "type": "string" },
+          "crop": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": { "type": "number", "minimum": 0, "maximum": 1 },
+              "y": { "type": "number", "minimum": 0, "maximum": 1 },
+              "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+              "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

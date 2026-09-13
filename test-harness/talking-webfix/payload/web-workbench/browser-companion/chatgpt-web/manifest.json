@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "一人内容团队｜ChatGPT 网页伴侣",
+  "version": "0.1.20",
+  "description": "只领取本机 AI 内容工作台中已确认的 ChatGPT 生图任务。",
+  "permissions": [
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "http://127.0.0.1:4318/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "ChatGPT 网页伴侣"
+  }
+}

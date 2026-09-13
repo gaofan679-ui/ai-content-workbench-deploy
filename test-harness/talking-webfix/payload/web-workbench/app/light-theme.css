@@ -1,0 +1,1714 @@
+/* 浅色模式：30% 明显毛玻璃 + 70% 清爽实体卡片 */
+.theme-toggle {
+  min-width: 76px;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(16, 24, 38, 0.56);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(91, 151, 244, 0.48);
+}
+.theme-toggle span {
+  color: #82b2ff;
+  font-size: 15px;
+  line-height: 1;
+}
+.theme-toggle b {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] body {
+  background: #f3f7fb;
+  color: #102033;
+}
+
+html:has(.drawer-layer),
+body:has(.drawer-layer) {
+  overflow: hidden;
+}
+
+.app-shell[data-theme="light"] {
+  --ink: #102033;
+  --muted: #5f6b7a;
+  --panel: #ffffff;
+  --line: #d9e2ec;
+  --blue: #2563eb;
+  --bg: #f3f7fb;
+  --surface-solid: #ffffff;
+  --surface-soft: #f7f9fc;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --text-primary: #172033;
+  --text-secondary: #5f6b7a;
+  --text-muted: #6b778a;
+  --border-soft: #d9e2ec;
+  --accent: #2563eb;
+  --accent-soft: #eaf2ff;
+  --focus-ring: rgba(37, 99, 235, 0.24);
+  --shadow-card: 0 10px 28px rgba(31, 62, 101, 0.07);
+  color-scheme: light;
+  background:
+    radial-gradient(circle at 92% 5%, rgba(23, 107, 255, 0.16), transparent 23%),
+    radial-gradient(circle at 58% 30%, rgba(112, 201, 255, 0.12), transparent 28%),
+    linear-gradient(138deg, #f9fbfe 0%, #f3f7fb 48%, #edf4fb 100%);
+  color: var(--ink);
+}
+
+/* 30%：只让导航、顶栏、核心入口和流程提示使用实时毛玻璃。 */
+.app-shell[data-theme="light"] .sidebar,
+.app-shell[data-theme="light"] .topbar,
+.app-shell[data-theme="light"] .pipeline-mini {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 18px 42px rgba(33, 83, 145, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  backdrop-filter: blur(16px) saturate(125%);
+}
+.app-shell[data-theme="light"] .sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(244, 249, 255, 0.54)),
+    radial-gradient(circle at 30% 12%, rgba(112, 201, 255, 0.2), transparent 28%);
+  border-right-color: rgba(255, 255, 255, 0.9);
+}
+.app-shell[data-theme="light"] .topbar {
+  background: rgba(248, 251, 255, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.88);
+}
+.app-shell[data-theme="light"] .pipeline-mini {
+  background: rgba(255, 255, 255, 0.52);
+}
+
+/* 70%：信息密集区使用实体白卡片，优先保证清晰度与滚动性能。 */
+.app-shell[data-theme="light"] .hero,
+.app-shell[data-theme="light"] .live-workflow-card,
+.app-shell[data-theme="light"] .workflow-card,
+.app-shell[data-theme="light"] .metric-grid > div,
+.app-shell[data-theme="light"] .task-list,
+.app-shell[data-theme="light"] .task-table,
+.app-shell[data-theme="light"] .result-card,
+.app-shell[data-theme="light"] .empty-state,
+.app-shell[data-theme="light"] .workflow-preview-studio,
+.app-shell[data-theme="light"] .prototype-banner,
+.app-shell[data-theme="light"] .workflow-preview-journey,
+.app-shell[data-theme="light"] .workflow-preview-columns > section,
+.app-shell[data-theme="light"] .model-project-list,
+.app-shell[data-theme="light"] .model-create-card,
+.app-shell[data-theme="light"] .model-step-card,
+.app-shell[data-theme="light"] .model-result-card,
+.app-shell[data-theme="light"] .model-project-title,
+.app-shell[data-theme="light"] .talking-form-card,
+.app-shell[data-theme="light"] .talking-mode-card,
+.app-shell[data-theme="light"] .fixed-quality-card,
+.app-shell[data-theme="light"] .project-facts,
+.app-shell[data-theme="light"] .project-facts article {
+  background: #ffffff;
+  border-color: #dce6f0;
+  box-shadow: 0 12px 32px rgba(33, 83, 145, 0.07);
+  color: #102033;
+}
+.app-shell[data-theme="light"] .hero {
+  background:
+    linear-gradient(106deg, rgba(255, 255, 255, 0.97), rgba(238, 247, 255, 0.92)),
+    radial-gradient(circle at 84% 34%, rgba(23, 107, 255, 0.17), transparent 30%);
+  border-color: rgba(167, 191, 218, 0.42);
+  box-shadow: 0 22px 64px rgba(33, 83, 145, 0.1);
+}
+
+.app-shell[data-theme="light"] .brand small,
+.app-shell[data-theme="light"] .sidebar-label,
+.app-shell[data-theme="light"] .hero p,
+.app-shell[data-theme="light"] .section-heading p,
+.app-shell[data-theme="light"] .workflow-card p,
+.app-shell[data-theme="light"] .live-workflow-card p,
+.app-shell[data-theme="light"] .task-main small,
+.app-shell[data-theme="light"] .table-title small,
+.app-shell[data-theme="light"] .table-row time,
+.app-shell[data-theme="light"] .result-card small,
+.app-shell[data-theme="light"] .subpage-title p,
+.app-shell[data-theme="light"] .drawer-intro,
+.app-shell[data-theme="light"] .model-route-copy p,
+.app-shell[data-theme="light"] .model-home-hero p,
+.app-shell[data-theme="light"] .project-facts-title > span,
+.app-shell[data-theme="light"] .project-facts article small,
+.app-shell[data-theme="light"] .project-facts article strong {
+  color: #637083;
+}
+.app-shell[data-theme="light"] .nav-list button,
+.app-shell[data-theme="light"] .workflow-nav button,
+.app-shell[data-theme="light"] .sidebar-bottom > button {
+  color: #53647a;
+}
+.app-shell[data-theme="light"] .nav-list button:hover,
+.app-shell[data-theme="light"] .workflow-nav button:hover {
+  color: #102033;
+  background: rgba(23, 107, 255, 0.08);
+}
+.app-shell[data-theme="light"] .nav-list button.active,
+.app-shell[data-theme="light"] .workflow-nav button.active {
+  color: #0d4fae;
+  background: linear-gradient(100deg, rgba(23, 107, 255, 0.16), rgba(112, 201, 255, 0.08));
+  box-shadow: inset 3px 0 #176bff;
+}
+.app-shell[data-theme="light"] .page-crumb,
+.app-shell[data-theme="light"] .section-heading h2,
+.app-shell[data-theme="light"] .subpage-title h1,
+.app-shell[data-theme="light"] .workflow-card h3,
+.app-shell[data-theme="light"] .live-workflow-card h3,
+.app-shell[data-theme="light"] .task-main strong,
+.app-shell[data-theme="light"] .table-title strong,
+.app-shell[data-theme="light"] .result-card strong {
+  color: #102033;
+}
+.app-shell[data-theme="light"] .date-pill,
+.app-shell[data-theme="light"] .eyebrow,
+.app-shell[data-theme="light"] .card-action,
+.app-shell[data-theme="light"] .card-arrow,
+.app-shell[data-theme="light"] .row-arrow,
+.app-shell[data-theme="light"] .result-menu {
+  color: #60738e;
+}
+.app-shell[data-theme="light"] .task-row:hover,
+.app-shell[data-theme="light"] .table-row:hover {
+  background: #f5f9fe;
+}
+.app-shell[data-theme="light"] .table-head {
+  background: #edf4fb;
+  color: #60738e;
+}
+.app-shell[data-theme="light"] .task-row,
+.app-shell[data-theme="light"] .table-row,
+.app-shell[data-theme="light"] .subpage-title,
+.app-shell[data-theme="light"] .account,
+.app-shell[data-theme="light"] .sidebar-bottom {
+  border-color: #e2eaf3;
+}
+.app-shell[data-theme="light"] .search,
+.app-shell[data-theme="light"] .icon-button,
+.app-shell[data-theme="light"] .theme-toggle,
+.app-shell[data-theme="light"] .filter-tabs button,
+.app-shell[data-theme="light"] input,
+.app-shell[data-theme="light"] textarea,
+.app-shell[data-theme="light"] select {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: #d7e2ee;
+  color: #102033;
+}
+.app-shell[data-theme="light"] .search input::placeholder,
+.app-shell[data-theme="light"] input::placeholder,
+.app-shell[data-theme="light"] textarea::placeholder {
+  color: #8a98aa;
+}
+.app-shell[data-theme="light"] .theme-toggle span {
+  color: #176bff;
+}
+.app-shell[data-theme="light"] .drawer-backdrop {
+  background: rgba(77, 100, 130, 0.3);
+}
+.app-shell[data-theme="light"] .task-drawer {
+  background: #f8fbff;
+  border-left-color: #dce6f0;
+  box-shadow: -24px 0 64px rgba(33, 83, 145, 0.18);
+  color: #102033;
+}
+.app-shell[data-theme="light"] .drawer-head > button,
+.app-shell[data-theme="light"] .filter-tabs button {
+  background: #ffffff;
+  color: #53647a;
+}
+.app-shell[data-theme="light"] .filter-tabs button.active {
+  background: #e7f1ff;
+  border-color: #b9d2f4;
+  color: #176bff;
+}
+.app-shell[data-theme="light"] .model-asset-studio {
+  --surface: #ffffff;
+  --border: #dce6f0;
+}
+
+/* 浅色模式可读性基线：颜色承担品牌感，文字层级承担导航与理解。 */
+.app-shell[data-theme="light"] button:focus-visible,
+.app-shell[data-theme="light"] a:focus-visible,
+.app-shell[data-theme="light"] input:focus-visible,
+.app-shell[data-theme="light"] textarea:focus-visible,
+.app-shell[data-theme="light"] select:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.app-shell[data-theme="light"] .sidebar-label {
+  margin-top: 24px;
+  color: #68758a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.app-shell[data-theme="light"] .nav-list button,
+.app-shell[data-theme="light"] .workflow-nav button {
+  position: relative;
+  min-height: 44px;
+  color: #425168;
+  font-size: 14px;
+  font-weight: 560;
+}
+.app-shell[data-theme="light"] .workflow-nav .mini-icon {
+  background: transparent; color: inherit; box-shadow: none;
+}
+.app-shell[data-theme="light"] .nav-list button.active,
+.app-shell[data-theme="light"] .workflow-nav button.active {
+  color: #174ea6;
+  font-weight: 700;
+  background: linear-gradient(100deg, #e7f0ff, rgba(234, 242, 255, 0.62));
+  box-shadow: inset 3px 0 #2563eb;
+}
+.app-shell[data-theme="light"] .workflow-nav button.active .mini-icon {
+  background: transparent; color: inherit; box-shadow: none;
+}
+.app-shell[data-theme="light"] .sidebar-bottom > button {
+  min-height: 42px;
+  color: #59677a;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .runtime-state strong {
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .runtime-state small {
+  color: #758195;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .brand small,
+.app-shell[data-theme="light"] .companion-state small {
+  color: #68758a;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .companion-state strong {
+  color: #344258;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .secondary-top-action {
+  background: #ffffff !important;
+  border-color: #ccd8e6 !important;
+  color: #3f536d !important;
+  box-shadow: 0 4px 14px rgba(31, 62, 101, 0.06);
+}
+
+/* 首页：实体信息卡优先，毛玻璃只保留在流程提示。 */
+.app-shell[data-theme="light"] .real-hero {
+  height: auto;
+  min-height: 190px;
+}
+.app-shell[data-theme="light"] .hero h1 {
+  color: var(--text-primary);
+  font-size: clamp(28px, 3vw, 34px);
+  font-weight: 720;
+}
+.app-shell[data-theme="light"] .hero p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.app-shell[data-theme="light"] .hero-button {
+  min-height: 42px;
+  color: #ffffff;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .pipeline-mini div {
+  border-color: rgba(170, 188, 210, 0.5);
+  background: rgba(255, 255, 255, 0.76);
+  color: #526176;
+  font-size: 11px;
+  font-weight: 600;
+}
+.app-shell[data-theme="light"] .pipeline-mini div.gate {
+  border-color: #ead4a4;
+  background: #fff7e7;
+  color: #8a5a0a;
+}
+.app-shell[data-theme="light"] .metric-grid > div {
+  min-height: 116px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .metric-grid small {
+  color: #59677a;
+  font-size: 12px;
+  font-weight: 650;
+}
+.app-shell[data-theme="light"] .metric-grid strong {
+  color: #172033;
+  font-size: 28px;
+  font-weight: 750;
+}
+.app-shell[data-theme="light"] .metric-grid span {
+  color: #6b778a;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.app-shell[data-theme="light"] .section-heading h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .section-heading p {
+  color: #68758a;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .connected-badge {
+  border-color: #bfe5cf;
+  background: #edf9f2;
+  color: #25784c;
+  font-size: 11px;
+  font-weight: 650;
+}
+.app-shell[data-theme="light"] .live-workflow-card,
+.app-shell[data-theme="light"] .workflow-card {
+  min-height: 142px;
+  padding: 22px;
+  border-color: var(--border-soft);
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .live-workflow-card:hover,
+.app-shell[data-theme="light"] .workflow-card:hover {
+  border-color: #a8c3e8;
+  background: #fbfdff;
+  box-shadow: 0 16px 36px rgba(31, 62, 101, 0.11);
+}
+.app-shell[data-theme="light"] .live-workflow-card small,
+.app-shell[data-theme="light"] .workflow-card small {
+  color: #3568ad;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.app-shell[data-theme="light"] .live-workflow-card h3,
+.app-shell[data-theme="light"] .workflow-card h3 {
+  color: #172033;
+  font-size: 18px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .live-workflow-card p,
+.app-shell[data-theme="light"] .workflow-card p {
+  color: #5f6b7a;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.app-shell[data-theme="light"] .live-workflow-card > b {
+  color: #245fae;
+  font-size: 13px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .workflow-boundaries span {
+  border-color: #dce5ef;
+  background: #f4f7fb;
+  color: #5e6c80;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .empty-state,
+.app-shell[data-theme="light"] .results-empty {
+  min-height: 220px;
+  padding: 38px 24px;
+  border-color: #ccd8e6;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .empty-state h3,
+.app-shell[data-theme="light"] .results-empty h3 {
+  font-size: 17px;
+}
+.app-shell[data-theme="light"] .empty-state p,
+.app-shell[data-theme="light"] .results-empty p {
+  color: #68758a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.app-shell[data-theme="light"] .empty-state button {
+  min-height: 40px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .subpage-title span {
+  color: #3568ad;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .subpage-title h1 {
+  color: #172033;
+  font-weight: 720;
+}
+.app-shell[data-theme="light"] .subpage-title p {
+  color: #68758a;
+  font-size: 13px;
+}
+
+/* AI 口播：修复深色容器遗留，并把步骤、表单和帮助文字提升到可读字号。 */
+.app-shell[data-theme="light"] .talking-hero {
+  border-color: #d7e2ee;
+  background: radial-gradient(circle at 84% 22%, rgba(129, 92, 246, 0.12), transparent 34%), linear-gradient(135deg, #ffffff, #f7f5ff);
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .talking-hero small,
+.app-shell[data-theme="light"] .talking-section-title > span,
+.app-shell[data-theme="light"] .mode-group-heading small {
+  color: #6d45a8;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .talking-hero h1,
+.app-shell[data-theme="light"] .talking-section-title h2,
+.app-shell[data-theme="light"] .mode-group-heading h3 {
+  color: #172033;
+}
+.app-shell[data-theme="light"] .talking-hero p,
+.app-shell[data-theme="light"] .talking-section-title p {
+  color: #5f6b7a;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .talking-outcome {
+  border-color: #ddd0f2;
+  background: rgba(255, 255, 255, 0.72);
+}
+.app-shell[data-theme="light"] .talking-outcome span,
+.app-shell[data-theme="light"] .talking-outcome small {
+  color: #6d5f7e;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .talking-progress,
+.app-shell[data-theme="light"] .talking-panel,
+.app-shell[data-theme="light"] .mode-group,
+.app-shell[data-theme="light"] .talking-new-project,
+.app-shell[data-theme="light"] .talking-form-card,
+.app-shell[data-theme="light"] .setup-summary {
+  border-color: #d9e2ec;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .talking-progress button {
+  color: #68758a;
+  font-size: 11px;
+  font-weight: 600;
+}
+.app-shell[data-theme="light"] .talking-progress button.complete,
+.app-shell[data-theme="light"] .talking-progress button.current {
+  color: #30415a;
+}
+.app-shell[data-theme="light"] .talking-progress button:not(:last-child):after {
+  background: #d3dde9;
+}
+.app-shell[data-theme="light"] .talking-mode-card {
+  min-height: 224px;
+  border-color: #d9e2ec;
+  background: #f9fbfd;
+  color: #172033;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .talking-mode-card:hover {
+  border-color: #abc4e7;
+  background: #ffffff;
+}
+.app-shell[data-theme="light"] .talking-mode-card.selected.blue,
+.app-shell[data-theme="light"] .talking-mode-card.selected.violet,
+.app-shell[data-theme="light"] .talking-mode-card.selected.gold,
+.app-shell[data-theme="light"] .talking-mode-card.selected.pink {
+  border-color: #7fa9e5;
+  background: #edf4ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.app-shell[data-theme="light"] .talking-mode-card small,
+.app-shell[data-theme="light"] .talking-mode-card p,
+.app-shell[data-theme="light"] .talking-mode-card > b,
+.app-shell[data-theme="light"] .mode-group-heading > span,
+.app-shell[data-theme="light"] .talking-new-project {
+  color: #657287;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .talking-mode-card h3 {
+  color: #172033;
+  font-size: 18px;
+}
+.app-shell[data-theme="light"] .talking-field > span,
+.app-shell[data-theme="light"] .talking-option-title,
+.app-shell[data-theme="light"] .form-card-head h3 {
+  color: #344258;
+  font-size: 12px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .form-card-head p,
+.app-shell[data-theme="light"] .talking-field > small,
+.app-shell[data-theme="light"] .talking-option-grid small,
+.app-shell[data-theme="light"] .segmented-control button small,
+.app-shell[data-theme="light"] .compact-upload small,
+.app-shell[data-theme="light"] .master-hints span,
+.app-shell[data-theme="light"] .talking-person-route small {
+  color: #68758a;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .segmented-control,
+.app-shell[data-theme="light"] .talking-field textarea,
+.app-shell[data-theme="light"] .talking-field select,
+.app-shell[data-theme="light"] .talking-option-grid button,
+.app-shell[data-theme="light"] .compact-upload,
+.app-shell[data-theme="light"] .talking-person-route {
+  border-color: #d5e0ec;
+  background: #f7f9fc;
+  color: #344258;
+}
+.app-shell[data-theme="light"] .segmented-control button,
+.app-shell[data-theme="light"] .talking-option-grid b,
+.app-shell[data-theme="light"] .compact-upload strong,
+.app-shell[data-theme="light"] .talking-person-route strong {
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .segmented-control button.selected,
+.app-shell[data-theme="light"] .talking-option-grid button.selected,
+.app-shell[data-theme="light"] .talking-person-route.selected {
+  border-color: #8cb2e8;
+  background: #eaf2ff;
+  color: #174ea6;
+}
+
+/* 模特资产：首页入口与项目表单全部使用浅色实体层。 */
+.app-shell[data-theme="light"] .model-asset-studio {
+  --surface: #ffffff;
+  --border: #d9e2ec;
+  color: #172033;
+}
+.app-shell[data-theme="light"] .model-home-hero > span,
+.app-shell[data-theme="light"] .model-home-routes > button,
+.app-shell[data-theme="light"] .model-home-projects > button,
+.app-shell[data-theme="light"] .model-project-list,
+.app-shell[data-theme="light"] .model-create-card,
+.app-shell[data-theme="light"] .model-step-card,
+.app-shell[data-theme="light"] .model-result-card,
+.app-shell[data-theme="light"] .model-project-title,
+.app-shell[data-theme="light"] .model-route-cards > button,
+.app-shell[data-theme="light"] .ai-method-picker,
+.app-shell[data-theme="light"] .ai-method-grid > button,
+.app-shell[data-theme="light"] .model-create-uploads {
+  border-color: #d9e2ec;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .model-home-routes > button:hover,
+.app-shell[data-theme="light"] .model-home-projects > button:hover {
+  border-color: #a8c3e8;
+  background: #f8fbff;
+}
+.app-shell[data-theme="light"] .model-route-copy small,
+.app-shell[data-theme="light"] .model-home-projects small,
+.app-shell[data-theme="light"] .model-create-toolbar,
+.app-shell[data-theme="light"] .model-create-intro p,
+.app-shell[data-theme="light"] .ai-method-picker p,
+.app-shell[data-theme="light"] .ai-method-grid p {
+  color: #657287;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .model-route-copy strong {
+  color: #172033;
+}
+.app-shell[data-theme="light"] .model-route-copy i,
+.app-shell[data-theme="light"] .model-route-badge {
+  background: #eaf2ff;
+  color: #245fae;
+}
+.app-shell[data-theme="light"] .model-home-routes > button > em,
+.app-shell[data-theme="light"] .model-home-projects i {
+  color: #3568ad;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .model-create-toolbar button,
+.app-shell[data-theme="light"] .model-create-intro > button,
+.app-shell[data-theme="light"] .model-create-card input,
+.app-shell[data-theme="light"] .model-create-card textarea,
+.app-shell[data-theme="light"] .model-step-card textarea,
+.app-shell[data-theme="light"] .model-step-card select {
+  border-color: #ccd8e6;
+  background: #f8fafc;
+  color: #243247;
+}
+.app-shell[data-theme="light"] .ai-method-grid > button.selected,
+.app-shell[data-theme="light"] .model-route-cards > button.selected,
+.app-shell[data-theme="light"] .model-project-list > button.selected {
+  border-color: #7fa9e5;
+  background: #eaf2ff;
+}
+.app-shell[data-theme="light"] .ai-method-guide {
+  background: #eef4fb;
+  color: #526176;
+}
+.app-shell[data-theme="light"] .ai-method-guide strong {
+  color: #243247;
+}
+
+/* 社媒提取：深色表单彻底切换为浅色，字段名称和选择项保持清晰。 */
+.app-shell[data-theme="light"] .social-extract-form,
+.app-shell[data-theme="light"] .social-extract-history,
+.app-shell[data-theme="light"] .social-result-card {
+  border-color: #d9e2ec;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .social-extract-form > label > span,
+.app-shell[data-theme="light"] .social-extract-form legend {
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .social-extract-form textarea,
+.app-shell[data-theme="light"] .social-extract-form select,
+.app-shell[data-theme="light"] .social-extract-form fieldset label {
+  border-color: #ccd8e6;
+  background: #f8fafc;
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .social-download-confirm {
+  border-color: #ead4a4 !important;
+  background: #fff8e8 !important;
+  color: #77521a !important;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .social-extract-form > button {
+  color: #ffffff;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .social-extract-form > button:disabled {
+  border: 1px solid #cbd8e6;
+  background: #e6edf5;
+  color: #526176;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .social-result-card p,
+.app-shell[data-theme="light"] .social-result-card dt {
+  color: #657287;
+}
+.app-shell[data-theme="light"] .social-result-card dl > div {
+  border-color: #e1e8f0;
+  font-size: 12px;
+}
+
+/* 所有流程预览共用同一浅色阅读层，避免新入口继续带出深色遗留。 */
+.app-shell[data-theme="light"] .prototype-banner {
+  border-color: #d8c8ef;
+  background: #faf7ff;
+  color: #344258;
+}
+.app-shell[data-theme="light"] .prototype-banner > span {
+  background: #eee5fb;
+  color: #7044aa;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .prototype-banner strong,
+.app-shell[data-theme="light"] .prototype-banner p {
+  color: #5f6b7a;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .workflow-preview-hero,
+.app-shell[data-theme="light"] .workflow-preview-hero.tone-violet,
+.app-shell[data-theme="light"] .workflow-preview-hero.tone-pink,
+.app-shell[data-theme="light"] .workflow-preview-hero.tone-orange {
+  border-color: #d7e2ee;
+  background: radial-gradient(circle at 84% 22%, rgba(37, 99, 235, 0.1), transparent 34%), linear-gradient(135deg, #ffffff, #f2f7fd);
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .workflow-preview-intro > small {
+  color: #3568ad;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .workflow-preview-intro h1 {
+  color: #172033;
+  font-weight: 720;
+}
+.app-shell[data-theme="light"] .workflow-preview-intro p {
+  color: #5f6b7a;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.app-shell[data-theme="light"] .workflow-preview-hero aside {
+  border-color: #d6e0eb;
+  background: rgba(255, 255, 255, 0.78);
+}
+.app-shell[data-theme="light"] .workflow-preview-hero aside span {
+  color: #657287;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .workflow-preview-hero aside strong {
+  border-color: #e0e7ef;
+  color: #344258;
+  font-size: 12px;
+  font-weight: 650;
+}
+.app-shell[data-theme="light"] .workflow-preview-journey,
+.app-shell[data-theme="light"] .workflow-preview-result {
+  border-color: #d9e2ec;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .preview-section-title small,
+.app-shell[data-theme="light"] .workflow-preview-result > div:first-child > small,
+.app-shell[data-theme="light"] .workflow-preview-columns small {
+  color: #3568ad;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .preview-section-title p,
+.app-shell[data-theme="light"] .workflow-preview-result p {
+  color: #657287;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .journey-grid > div,
+.app-shell[data-theme="light"] .preview-output-grid > div {
+  border-color: #dbe4ee;
+  background: #f7f9fc;
+  color: #344258;
+}
+.app-shell[data-theme="light"] .journey-grid > div > small {
+  color: #6b778a;
+  font-size: 10px;
+}
+.app-shell[data-theme="light"] .journey-grid > div > strong,
+.app-shell[data-theme="light"] .preview-output-grid strong {
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .workflow-preview-columns > section {
+  border-color: #d9e2ec;
+  background: #ffffff;
+  color: #172033;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .workflow-preview-columns li {
+  border-color: #e2e8f0;
+  color: #526176;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .preview-status-note {
+  color: #68758a;
+  font-size: 11px;
+}
+
+/*
+ * 浅色模式系统修正：二级页面不能只换外层背景。
+ * 这里统一收口弹窗、表单、选择卡、禁用态和结果面板的实体阅读层。
+ */
+.app-shell[data-theme="light"] .offline-banner {
+  border-color: #efc7c1;
+  background: #fff3f1;
+  color: #9a342b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .offline-banner span {
+  color: #6f4b48;
+}
+
+/* 首页四条生产线使用同一套内容行高，标题换行时其余信息仍保持对齐。 */
+.app-shell[data-theme="light"] .live-workflow-card {
+  min-height: 216px;
+  grid-template-columns: 54px minmax(0, 1fr) 180px;
+  align-items: center;
+  gap: 20px;
+}
+.app-shell[data-theme="light"] .live-workflow-card > div:nth-child(2) {
+  display: grid;
+  grid-template-rows: 17px minmax(54px, auto) minmax(43px, auto) minmax(28px, auto);
+  row-gap: 10px;
+  align-content: center;
+}
+.app-shell[data-theme="light"] .live-workflow-card h3,
+.app-shell[data-theme="light"] .live-workflow-card p,
+.app-shell[data-theme="light"] .live-workflow-card .workflow-boundaries {
+  margin: 0;
+}
+.app-shell[data-theme="light"] .live-workflow-card + .live-workflow-card {
+  margin-top: 14px;
+}
+.app-shell[data-theme="light"] .workflow-boundaries {
+  align-content: flex-start;
+}
+
+/* 新建项目抽屉：清晰的白色表单层与蓝色选中态。 */
+.app-shell[data-theme="light"] .drawer-head,
+.app-shell[data-theme="light"] .drawer-footer {
+  border-color: #d9e2ec;
+  background: rgba(248, 251, 255, 0.96);
+}
+.app-shell[data-theme="light"] .drawer-head small {
+  color: #5f6f84;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.app-shell[data-theme="light"] .drawer-head h2 {
+  color: #172033;
+  font-size: 22px;
+}
+.app-shell[data-theme="light"] .scope-strip {
+  border-color: #c8dcfb;
+  background: #eef5ff;
+}
+.app-shell[data-theme="light"] .scope-strip strong {
+  color: #1e5da8;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .scope-strip span {
+  color: #526176;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .form-stack label > span,
+.app-shell[data-theme="light"] .setup-field legend {
+  color: #344258;
+  font-size: 14px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .form-stack input,
+.app-shell[data-theme="light"] .form-stack textarea,
+.app-shell[data-theme="light"] .form-stack select,
+.app-shell[data-theme="light"] .budget-input {
+  border-color: #cbd8e6;
+  background: #ffffff;
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .upload-box {
+  min-height: 112px;
+  border-color: #afc8e8;
+  background: #f4f8fd;
+}
+.app-shell[data-theme="light"] .upload-box strong {
+  color: #172033;
+  font-size: 14px;
+}
+.app-shell[data-theme="light"] .upload-box small,
+.app-shell[data-theme="light"] .form-stack label > small {
+  color: #5f6f84;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .change-section + .change-section {
+  border-color: #dce5ef;
+}
+.app-shell[data-theme="light"] .change-section-head strong {
+  color: #172033;
+}
+.app-shell[data-theme="light"] .change-section-head span {
+  color: #5f6b7a;
+}
+.app-shell[data-theme="light"] .preference-field {
+  border: 1px solid #d7e4f5;
+  background: #f5f8fd;
+}
+.app-shell[data-theme="light"] .route-options > button,
+.app-shell[data-theme="light"] .provider-options > button,
+.app-shell[data-theme="light"] .choice-list button,
+.app-shell[data-theme="light"] .generation-route-options button,
+.app-shell[data-theme="light"] .video-model-options button {
+  border-color: #ccd8e6;
+  background: #ffffff;
+  color: #243247;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .route-options > button:hover,
+.app-shell[data-theme="light"] .provider-options > button:not(:disabled):hover,
+.app-shell[data-theme="light"] .choice-list button:not(:disabled):hover,
+.app-shell[data-theme="light"] .generation-route-options button:not(:disabled):hover,
+.app-shell[data-theme="light"] .video-model-options button:not(:disabled):hover {
+  border-color: #8eb2e3;
+  background: #f7faff;
+}
+.app-shell[data-theme="light"] .route-options > button.selected,
+.app-shell[data-theme="light"] .provider-options > button.selected,
+.app-shell[data-theme="light"] .choice-list button.selected,
+.app-shell[data-theme="light"] .generation-route-options button.selected,
+.app-shell[data-theme="light"] .video-model-options button.selected {
+  border-color: #75a4e5;
+  background: #e8f1ff;
+  color: #174ea6;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.09);
+}
+.app-shell[data-theme="light"] .route-options strong,
+.app-shell[data-theme="light"] .provider-options strong,
+.app-shell[data-theme="light"] .choice-list strong,
+.app-shell[data-theme="light"] .generation-route-options strong,
+.app-shell[data-theme="light"] .video-model-options strong {
+  color: #243247;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.app-shell[data-theme="light"] .route-options span,
+.app-shell[data-theme="light"] .provider-options span,
+.app-shell[data-theme="light"] .choice-list span,
+.app-shell[data-theme="light"] .generation-route-options span,
+.app-shell[data-theme="light"] .video-model-options span {
+  color: #5f6f84;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .check-line span,
+.app-shell[data-theme="light"] .consent-box span {
+  color: #526176 !important;
+  font-size: 12px;
+  line-height: 1.6 !important;
+}
+.app-shell[data-theme="light"] .consent-box,
+.app-shell[data-theme="light"] .ai-direction-confirm,
+.app-shell[data-theme="light"] .model-portrait-consent {
+  border-color: #e5d1a8;
+  background: #fff9ec;
+}
+.app-shell[data-theme="light"] .safe-note {
+  border-color: #bfe3ce;
+  background: #eef9f3;
+}
+.app-shell[data-theme="light"] .safe-note p {
+  color: #446454;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .safe-note strong {
+  color: #245c40;
+}
+.app-shell[data-theme="light"] .drawer-footer {
+  height: auto;
+  min-height: 82px;
+}
+.app-shell[data-theme="light"] .drawer-footer button {
+  min-height: 46px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.app-shell[data-theme="light"] .drawer-footer .secondary {
+  border-color: #cbd8e6;
+  background: #ffffff;
+  color: #405169;
+}
+
+/* 禁用态只降低行动感，不再把文字和底色一起透明化。 */
+.app-shell[data-theme="light"] button:disabled,
+.app-shell[data-theme="light"] .talking-mode-card.disabled,
+.app-shell[data-theme="light"] .talking-person-route.disabled,
+.app-shell[data-theme="light"] .talking-person-route.experimental {
+  opacity: 1;
+}
+.app-shell[data-theme="light"] button:disabled {
+  cursor: not-allowed;
+}
+.app-shell[data-theme="light"] .drawer-footer .primary:disabled,
+.app-shell[data-theme="light"] .model-create-card > button:disabled,
+.app-shell[data-theme="light"] .action-panel > button:disabled,
+.app-shell[data-theme="light"] .route-form > button:disabled {
+  border: 1px solid #cbd8e6;
+  background: #e6edf5;
+  color: #526176;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .provider-options > button:disabled,
+.app-shell[data-theme="light"] .ai-method-grid > button:disabled,
+.app-shell[data-theme="light"] .real-person-stage-tabs button:disabled,
+.app-shell[data-theme="light"] .talking-mode-card.disabled,
+.app-shell[data-theme="light"] .talking-person-route.disabled {
+  border-color: #d5dee8;
+  background: #f0f3f7;
+  color: #526176;
+}
+
+/* 模特资产：补齐内层步骤卡、上传卡和渠道卡。 */
+.app-shell[data-theme="light"] .model-create-details,
+.app-shell[data-theme="light"] .model-create-provider,
+.app-shell[data-theme="light"] .model-optional-references,
+.app-shell[data-theme="light"] .model-file-input,
+.app-shell[data-theme="light"] .model-revision-upload,
+.app-shell[data-theme="light"] .real-person-progress,
+.app-shell[data-theme="light"] .real-person-branch-note,
+.app-shell[data-theme="light"] .stage-reference-rule,
+.app-shell[data-theme="light"] .model-project-brief p,
+.app-shell[data-theme="light"] .model-candidate-strip button {
+  border-color: #d6e0eb;
+  background: #f7f9fc;
+  color: #243247;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .model-create-details > div p,
+.app-shell[data-theme="light"] .model-create-provider > div p,
+.app-shell[data-theme="light"] .model-create-upload-heading p,
+.app-shell[data-theme="light"] .model-local-note,
+.app-shell[data-theme="light"] .real-person-progress-heading p,
+.app-shell[data-theme="light"] .real-person-branch-note,
+.app-shell[data-theme="light"] .stage-reference-rule {
+  color: #5f6b7a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .model-create-details label > span {
+  color: #344258;
+  font-size: 14px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .model-create-upload {
+  border-color: #b9cbe0;
+  background: #ffffff;
+  color: #243247;
+}
+.app-shell[data-theme="light"] .model-create-upload.required {
+  border-color: #8db3e8;
+  background: #eef5ff;
+}
+.app-shell[data-theme="light"] .model-create-upload strong,
+.app-shell[data-theme="light"] .model-optional-references > summary strong,
+.app-shell[data-theme="light"] .real-person-stage-tabs button strong {
+  color: #243247;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .model-create-upload small,
+.app-shell[data-theme="light"] .model-optional-references > summary small,
+.app-shell[data-theme="light"] .real-person-stage-tabs button small {
+  color: #657287;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.app-shell[data-theme="light"] .model-create-upload b,
+.app-shell[data-theme="light"] .model-optional-references > summary > b,
+.app-shell[data-theme="light"] .model-create-upload-heading > span {
+  color: #245fae;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .model-pending-files > span {
+  border-color: #d6e0eb;
+  background: #ffffff;
+  color: #405169;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .model-project-back {
+  border-color: #cbd8e6 !important;
+  background: #ffffff !important;
+  color: #245fae !important;
+}
+.app-shell[data-theme="light"] .real-person-stage-tabs button {
+  border-color: #d6e0eb;
+  background: #ffffff;
+  color: #405169;
+}
+.app-shell[data-theme="light"] .real-person-stage-tabs button.selected {
+  border-color: #7fa9e5;
+  background: #eaf2ff;
+}
+.app-shell[data-theme="light"] .ai-method-grid > button > b,
+.app-shell[data-theme="light"] .model-create-upload-heading h3 > span,
+.app-shell[data-theme="light"] .model-create-details h3 > span,
+.app-shell[data-theme="light"] .model-create-provider h3 > span {
+  background: #dceaff;
+  color: #1f5daa;
+}
+.app-shell[data-theme="light"] .ai-method-grid strong {
+  color: #243247;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .ai-method-grid small {
+  color: #2f67ad;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .ai-method-grid p {
+  color: #5f6b7a;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .ai-method-guide,
+.app-shell[data-theme="light"] .ai-method-guide strong,
+.app-shell[data-theme="light"] .ai-method-guide span {
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .model-route-badge,
+.app-shell[data-theme="light"] .model-create-intro > button,
+.app-shell[data-theme="light"] .model-create-toolbar,
+.app-shell[data-theme="light"] .model-create-toolbar button {
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .provider-heading strong {
+  color: #344258;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .provider-heading span {
+  color: #526783;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .upload-symbol {
+  color: #2563eb !important;
+}
+.app-shell[data-theme="light"] .workflow-icon.orange {
+  color: #a94708;
+}
+.app-shell[data-theme="light"] .safe-note > span {
+  color: #24764e;
+  background: #d9f1e3;
+  font-size: 12px;
+}
+
+/* 任务、成果与后续制作步骤沿用同一实体阅读层，避免深色卡片再次漏出。 */
+.app-shell[data-theme="light"] .action-panel,
+.app-shell[data-theme="light"] .video-rework-panel,
+.app-shell[data-theme="light"] .video-rework-segments article,
+.app-shell[data-theme="light"] .video-rework-issues label,
+.app-shell[data-theme="light"] .video-rework-history,
+.app-shell[data-theme="light"] .video-rework-summary div,
+.app-shell[data-theme="light"] .video-rework-plan-meta span,
+.app-shell[data-theme="light"] .video-rework-plan details,
+.app-shell[data-theme="light"] .result-project-card,
+.app-shell[data-theme="light"] .result-status-overview > button,
+.app-shell[data-theme="light"] .result-materials > summary .result-section-head,
+.app-shell[data-theme="light"] .result-version-library,
+.app-shell[data-theme="light"] .result-version-library > details,
+.app-shell[data-theme="light"] .social-copy-result,
+.app-shell[data-theme="light"] .artifact-viewer,
+.app-shell[data-theme="light"] .generation-spec-grid > div,
+.app-shell[data-theme="light"] .video-generation-settings,
+.app-shell[data-theme="light"] .sample-review,
+.app-shell[data-theme="light"] .production-overview,
+.app-shell[data-theme="light"] .timeline-preview,
+.app-shell[data-theme="light"] .edit-options,
+.app-shell[data-theme="light"] .result-assets,
+.app-shell[data-theme="light"] .boutique-plan,
+.app-shell[data-theme="light"] .boutique-plan li,
+.app-shell[data-theme="light"] .recent-talking-projects,
+.app-shell[data-theme="light"] .recent-talking-projects button {
+  border-color: #d8e2ed;
+  background: #ffffff;
+  color: #243247;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .confirm-panel textarea,
+.app-shell[data-theme="light"] .video-rework-section textarea,
+.app-shell[data-theme="light"] .result-library-tools input,
+.app-shell[data-theme="light"] .result-library-tools select {
+  border-color: #cbd8e6;
+  background: #ffffff;
+  color: #243247;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .result-project-card,
+.app-shell[data-theme="light"] .result-status-overview > button {
+  color: #243247;
+}
+.app-shell[data-theme="light"] .result-status-overview strong,
+.app-shell[data-theme="light"] .result-group-heading h2,
+.app-shell[data-theme="light"] .result-search-empty strong {
+  color: #172033;
+}
+.app-shell[data-theme="light"] .result-card-info > p,
+.app-shell[data-theme="light"] .result-status-overview small,
+.app-shell[data-theme="light"] .result-group-heading p,
+.app-shell[data-theme="light"] .result-section-head p,
+.app-shell[data-theme="light"] .social-copy-result > p {
+  color: #5f6b7a;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .result-chip-list span {
+  border-color: #d7e2ee;
+  background: #f2f6fb;
+  color: #526783;
+  font-size: 11px;
+}
+
+/* 口播页里的小型选择器也遵守 12px 阅读底线。 */
+.app-shell[data-theme="light"] .choice-list button,
+.app-shell[data-theme="light"] .segmented-control button,
+.app-shell[data-theme="light"] .compact-upload,
+.app-shell[data-theme="light"] .talking-person-route,
+.app-shell[data-theme="light"] .talking-person-preview-card,
+.app-shell[data-theme="light"] .master-hints {
+  border-color: #d5e0ec;
+  background: #f7f9fc;
+  color: #344258;
+}
+.app-shell[data-theme="light"] .segmented-control button b,
+.app-shell[data-theme="light"] .compact-upload strong,
+.app-shell[data-theme="light"] .talking-person-route strong,
+.app-shell[data-theme="light"] .master-hints strong,
+.app-shell[data-theme="light"] .talking-person-preview-card > div > strong {
+  color: #344258;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .segmented-control button small,
+.app-shell[data-theme="light"] .compact-upload small,
+.app-shell[data-theme="light"] .compact-upload > b,
+.app-shell[data-theme="light"] .talking-person-route small,
+.app-shell[data-theme="light"] .talking-person-route > span,
+.app-shell[data-theme="light"] .master-hints span,
+.app-shell[data-theme="light"] .master-hints small,
+.app-shell[data-theme="light"] .talking-person-preview-card > div > small,
+.app-shell[data-theme="light"] .talking-person-preview-card > div > span,
+.app-shell[data-theme="light"] .talking-person-preview-actions button,
+.app-shell[data-theme="light"] .talking-person-preview-actions label {
+  color: #5f6b7a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.app-shell[data-theme="light"] .setup-summary {
+  border-color: #d9e2ec;
+  background: #f6f8fb;
+}
+.app-shell[data-theme="light"] .setup-summary small {
+  color: #5f6f84;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .setup-summary strong {
+  color: #172033;
+  font-size: 14px;
+}
+.app-shell[data-theme="light"] .setup-summary button {
+  color: #245fae;
+  font-size: 12px;
+  font-weight: 650;
+}
+.app-shell[data-theme="light"] .form-card-head > span {
+  background: #e7dcf6;
+  color: #68409a;
+  font-size: 11px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .form-card-head h3 {
+  color: #172033;
+  font-size: 15px;
+}
+.app-shell[data-theme="light"] .form-card-head p {
+  color: #5f6b7a;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .talking-field textarea,
+.app-shell[data-theme="light"] .talking-field select {
+  font-size: 14px;
+}
+.app-shell[data-theme="light"] .talking-check,
+.app-shell[data-theme="light"] .talking-check span {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .mock-upload {
+  border-color: #b9cbe0;
+  background: #f7f9fc;
+  color: #243247;
+}
+.app-shell[data-theme="light"] .mock-upload > span {
+  color: #68409a;
+}
+.app-shell[data-theme="light"] .mock-upload strong {
+  color: #243247;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .mock-upload small,
+.app-shell[data-theme="light"] .talking-option-hint {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .talking-option-grid small {
+  color: #526176;
+}
+.app-shell[data-theme="light"] .talking-option-grid em {
+  background: #dceaff;
+  color: #1f5daa;
+  font-size: 10px;
+  font-weight: 700;
+}
+.app-shell[data-theme="light"] .talking-person-route > span {
+  color: #405169;
+  font-size: 11px;
+}
+.app-shell[data-theme="light"] .master-hints strong {
+  color: #344258;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .master-hints span,
+.app-shell[data-theme="light"] .master-hints small {
+  color: #526176;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .talking-primary-row {
+  border-color: #d7c8ea;
+  background: #f7f2fc;
+}
+.app-shell[data-theme="light"] .talking-primary-row small {
+  color: #68409a;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .talking-primary-row strong {
+  color: #172033;
+  font-size: 14px;
+}
+.app-shell[data-theme="light"] .talking-primary-row span {
+  color: #526176;
+  font-size: 12px;
+}
+.app-shell[data-theme="light"] .talking-primary-row > button {
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .talking-primary-row > button:disabled {
+  border: 1px solid #d2dbe6;
+  background: #e8edf3;
+  color: #526176;
+  box-shadow: none;
+}
+
+/* 口播的方案、样片、生产、质检、剪辑和成果页都使用相同阅读层。 */
+.app-shell[data-theme="light"] .preflight-checks,
+.app-shell[data-theme="light"] .cost-preview,
+.app-shell[data-theme="light"] .decision-bar > div,
+.app-shell[data-theme="light"] .segment-list,
+.app-shell[data-theme="light"] .qc-table,
+.app-shell[data-theme="light"] .qc-table .qc-head,
+.app-shell[data-theme="light"] .edit-options,
+.app-shell[data-theme="light"] .export-spec {
+  border-color: #d8e2ed;
+  background: #ffffff;
+  color: #243247;
+}
+.app-shell[data-theme="light"] .preflight-checks small,
+.app-shell[data-theme="light"] .preflight-checks strong,
+.app-shell[data-theme="light"] .cost-preview > small,
+.app-shell[data-theme="light"] .cost-preview > p,
+.app-shell[data-theme="light"] .cost-preview dl > div,
+.app-shell[data-theme="light"] .cost-preview > span,
+.app-shell[data-theme="light"] .decision-bar span,
+.app-shell[data-theme="light"] .decision-bar p,
+.app-shell[data-theme="light"] .sample-review li,
+.app-shell[data-theme="light"] .production-overview small,
+.app-shell[data-theme="light"] .production-overview p,
+.app-shell[data-theme="light"] .segment-list strong,
+.app-shell[data-theme="light"] .segment-list small,
+.app-shell[data-theme="light"] .segment-list em,
+.app-shell[data-theme="light"] .qc-table > div,
+.app-shell[data-theme="light"] .edit-options > label b,
+.app-shell[data-theme="light"] .edit-options > label small,
+.app-shell[data-theme="light"] .export-spec span,
+.app-shell[data-theme="light"] .export-spec strong,
+.app-shell[data-theme="light"] .export-spec small,
+.app-shell[data-theme="light"] .result-celebration small,
+.app-shell[data-theme="light"] .result-celebration p,
+.app-shell[data-theme="light"] .result-assets strong,
+.app-shell[data-theme="light"] .result-assets small {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell[data-theme="light"] .cost-preview dd,
+.app-shell[data-theme="light"] .sample-review li b,
+.app-shell[data-theme="light"] .production-overview h3,
+.app-shell[data-theme="light"] .segment-list strong,
+.app-shell[data-theme="light"] .qc-table strong,
+.app-shell[data-theme="light"] .edit-options h3,
+.app-shell[data-theme="light"] .result-assets h3,
+.app-shell[data-theme="light"] .result-assets strong {
+  color: #243247;
+}
+
+/* 任务中心和成果中心的说明文字不再沿用 7–10px 的内部监控字号。 */
+.app-shell[data-theme="light"] .task-center-tools > input,
+.app-shell[data-theme="light"] .result-detail-head > button,
+.app-shell[data-theme="light"] .review-actions button.secondary,
+.app-shell[data-theme="light"] .provider-default-actions button,
+.app-shell[data-theme="light"] .codex-task-link {
+  border-color: #cbd8e6;
+  background: #ffffff;
+  color: #405169;
+}
+.app-shell[data-theme="light"] .status,
+.app-shell[data-theme="light"] .status-message,
+.app-shell[data-theme="light"] .task-status-head > span:last-child,
+.app-shell[data-theme="light"] .step-list strong,
+.app-shell[data-theme="light"] .step-list small,
+.app-shell[data-theme="light"] .real-step-list strong,
+.app-shell[data-theme="light"] .real-step-list small,
+.app-shell[data-theme="light"] .drawer-section > h3,
+.app-shell[data-theme="light"] .artifact-line > span,
+.app-shell[data-theme="light"] .artifact-line strong,
+.app-shell[data-theme="light"] .artifact-line small,
+.app-shell[data-theme="light"] .event-log strong,
+.app-shell[data-theme="light"] .event-log time,
+.app-shell[data-theme="light"] .task-date-group > h2 span,
+.app-shell[data-theme="light"] .task-search-empty,
+.app-shell[data-theme="light"] .live-table-row time,
+.app-shell[data-theme="light"] .project-provider-default small,
+.app-shell[data-theme="light"] .project-provider-default strong,
+.app-shell[data-theme="light"] .project-provider-default span,
+.app-shell[data-theme="light"] .project-provider-default p,
+.app-shell[data-theme="light"] .provider-default-actions button,
+.app-shell[data-theme="light"] .result-project-top small,
+.app-shell[data-theme="light"] .result-project-action span,
+.app-shell[data-theme="light"] .result-project-action strong,
+.app-shell[data-theme="light"] .result-detail-head > button,
+.app-shell[data-theme="light"] .result-detail-head > div span,
+.app-shell[data-theme="light"] .result-detail-head p,
+.app-shell[data-theme="light"] .artifact-viewer-title small,
+.app-shell[data-theme="light"] .artifact-viewer-title h3,
+.app-shell[data-theme="light"] .artifact-viewer-title a,
+.app-shell[data-theme="light"] .review-actions button,
+.app-shell[data-theme="light"] .preview-hint,
+.app-shell[data-theme="light"] .limit-note,
+.app-shell[data-theme="light"] .generation-upload-list > span,
+.app-shell[data-theme="light"] .generation-upload-list b,
+.app-shell[data-theme="light"] .generation-upload-list strong,
+.app-shell[data-theme="light"] .generation-upload-list small,
+.app-shell[data-theme="light"] .generation-setting-heading strong,
+.app-shell[data-theme="light"] .generation-setting-heading span,
+.app-shell[data-theme="light"] .confirmation-subtitle,
+.app-shell[data-theme="light"] .social-artifact-links a,
+.app-shell[data-theme="light"] .talking-result-viewer span,
+.app-shell[data-theme="light"] .prompt-review summary,
+.app-shell[data-theme="light"] .prompt-review > p,
+.app-shell[data-theme="light"] .next-step-card small,
+.app-shell[data-theme="light"] .next-step-card strong,
+.app-shell[data-theme="light"] .codex-task-link small,
+.app-shell[data-theme="light"] .codex-task-link strong,
+.app-shell[data-theme="light"] .codex-task-link span,
+.app-shell[data-theme="light"] .codex-task-link a,
+.app-shell[data-theme="light"] .codex-task-link button {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell[data-theme="light"] .task-center-tools > input {
+  color: #243247;
+  font-size: 13px;
+}
+.app-shell[data-theme="light"] .error-box,
+.app-shell[data-theme="light"] .person-review-panel {
+  border: 1px solid #efc7c1;
+  background: #fff3f1;
+  color: #873a33;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.app-shell[data-theme="light"] .review-actions button.secondary {
+  font-size: 12px;
+}
+
+/* 未默认开放的入口也先具备完整浅色状态，后续启用时不会重新出现灰底灰字。 */
+.app-shell[data-theme="light"] .preview-workflow-card,
+.app-shell[data-theme="light"] .short-video-picker,
+.app-shell[data-theme="light"] .short-video-route-grid button,
+.app-shell[data-theme="light"] .short-video-route-summary,
+.app-shell[data-theme="light"] .prompt-review,
+.app-shell[data-theme="light"] .next-step-card {
+  border-color: #d8e2ed;
+  background: #ffffff;
+  color: #243247;
+  box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .short-video-hero {
+  border-color: #ead8e4;
+  background: radial-gradient(circle at 82% 22%, rgba(194, 67, 136, 0.1), transparent 35%), linear-gradient(135deg, #ffffff, #fff7fb);
+  color: #172033;
+}
+.app-shell[data-theme="light"] .short-video-route-grid button.selected {
+  border-color: #d6a7c1;
+  background: #fff0f7;
+}
+.app-shell[data-theme="light"] .preview-workflow-card > small,
+.app-shell[data-theme="light"] .preview-workflow-card p,
+.app-shell[data-theme="light"] .preview-workflow-card > span,
+.app-shell[data-theme="light"] .short-video-hero small,
+.app-shell[data-theme="light"] .short-video-hero p,
+.app-shell[data-theme="light"] .short-video-hero aside span,
+.app-shell[data-theme="light"] .short-video-hero aside strong,
+.app-shell[data-theme="light"] .short-video-route-grid button > span,
+.app-shell[data-theme="light"] .short-video-route-grid small,
+.app-shell[data-theme="light"] .short-video-route-grid p,
+.app-shell[data-theme="light"] .short-video-route-summary > div > small,
+.app-shell[data-theme="light"] .short-video-route-summary p,
+.app-shell[data-theme="light"] .short-video-route-summary dl > div,
+.app-shell[data-theme="light"] .short-video-route-summary > button {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .app-shell[data-theme="light"] .live-workflow-card {
+    grid-template-columns: 45px minmax(0, 1fr);
+  }
+  .app-shell[data-theme="light"] .live-workflow-card > b {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 74px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .brand > div:last-child,
+  .nav-list button:not(.active) > span + *,
+  .nav-list button i,
+  .sidebar-label,
+  .workflow-nav button span,
+  .sidebar-bottom button span,
+  .account > div:not(.avatar),
+  .account button {
+    display: none;
+  }
+  .brand {
+    padding-left: 9px;
+  }
+  .nav-list button {
+    justify-content: center;
+    padding: 0;
+    font-size: 0;
+  }
+  .app-shell[data-theme="light"] .nav-list button {
+    font-size: 0;
+  }
+  .nav-list button > span {
+    font-size: 18px;
+  }
+  .workflow-nav button {
+    justify-content: center;
+    padding: 0;
+  }
+  .runtime-state div,
+  .companion-state div {
+    display: none;
+  }
+  .workspace {
+    margin-left: 74px;
+    width: calc(100% - 74px);
+  }
+  .topbar {
+    padding: 0 18px;
+  }
+  .content {
+    padding: 28px 22px 56px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell[data-theme="light"] .live-workflow-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell[data-theme="light"] .live-workflow-card > b {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 1150px) {
+  .app-shell[data-theme="light"] .real-hero {
+    min-height: 168px;
+    padding: 28px 30px;
+  }
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .app-shell[data-theme="light"] .sidebar,
+  .app-shell[data-theme="light"] .topbar,
+  .app-shell[data-theme="light"] .pipeline-mini {
+    background: rgba(255, 255, 255, 0.94);
+  }
+}
+
+@media (max-width: 760px) {
+  .theme-toggle {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+  }
+  .theme-toggle b {
+    display: none;
+  }
+  .app-shell[data-theme="light"] .sidebar,
+  .app-shell[data-theme="light"] .topbar,
+  .app-shell[data-theme="light"] .pipeline-mini {
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    backdrop-filter: blur(10px) saturate(115%);
+  }
+}
+
+/* Current talking/model candidate additions; keep both themes readable. */
+.theme-toggle b { font-size: 13px; }
+.theme-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.app-shell[data-theme="light"] :is(.model-ready-summary, .recent-project-link) {
+ background: #ffffff; color: #172033; border-color: #d9e2ec;
+}
+.app-shell[data-theme="light"] .recent-project-link small,
+.app-shell[data-theme="light"] .talking-studio :is(p, small),
+.app-shell[data-theme="light"] .model-asset-studio :is(p, small),
+.app-shell[data-theme="light"] .talking-studio .setup-missing-guide { color: #526176; }
+.app-shell[data-theme="light"] .talking-studio .talking-primary-row { background: #f3f7fb; }
+.app-shell[data-theme="light"] .talking-studio .secondary { background: #eef4ff; color: #214c88; border-color: #b8cdee; }
+.app-shell[data-theme="light"] .talking-studio button:focus-visible,
+.app-shell[data-theme="light"] .model-asset-studio button:focus-visible { outline-color: #2563eb; }
+.app-shell[data-theme="light"] .talking-studio :is(p, small, span, label, button, select, input, textarea, li, em, b, strong),
+.app-shell[data-theme="light"] .model-asset-studio :is(p, small, span, label, button, select, input, textarea, li, em, b, strong) { font-size: 13px; }
+
+.app-shell[data-theme="light"] .mode-rule-note { background: #f4f0fc; color: #526176; border-color: #dbcef0; }
+.app-shell[data-theme="light"] .mode-rule-note strong { color: #69439d; }
+.app-shell[data-theme="light"] .mode-rule-note.gold { background: #fff8e8; border-color: #e6d5a9; }
+.app-shell[data-theme="light"] .mode-rule-note.gold strong { color: #795615; }
+/* The current homepage uses cards introduced after the original visual prototype. */
+.app-shell[data-theme="light"] :is(.home-summary, .home-summary > div, .home-workflow-card, .home-priority-card) {
+ background: #fff; border-color: #d9e2ec; color: #172033; box-shadow: var(--shadow-card);
+}
+.app-shell[data-theme="light"] .home-summary { background: #edf3fa; box-shadow: none; }
+.app-shell[data-theme="light"] .home-priority-card.attention { background: #fffaf0; border-color: #e6d5a9; }
+.app-shell[data-theme="light"] :is(.home-summary strong, .home-workflow-card strong, .home-priority-card > strong) { color: #172033; }
+.app-shell[data-theme="light"] :is(.home-summary span, .home-section-heading p, .home-workflow-card small, .home-priority-card > small, .home-storage-note, .date-pill, .brand p, .sidebar-label, .runtime-state small, .companion-state small, .recent-section small) { color: #526176; }
+.app-shell[data-theme="light"] :is(.home-workflow-card > b, .home-priority-card > b, .home-priority-card > span, .home-text-button) { color: #245ab5; }
+.app-shell[data-theme="light"] .home-priority-card.attention > span { color: #795615; }
+.app-shell[data-theme="light"] .home-workflow-card .workflow-icon { background: #eaf2ff; color: #245ab5; border-color: #cbdcf4; }
+.app-shell[data-theme="light"] .home-workflow-card:hover { background: #eef4ff; border-color: #88ace3; }
+.app-shell[data-theme="light"] .mode-rule-note span { color: #526176; }
+.app-shell[data-theme="light"] .talking-progress .complete span { color: #23784d; }
+.app-shell[data-theme="light"] :is(.model-action-button.secondary, .model-project-title > button, .talking-new-project button) { background: #eef4ff; color: #245ab5; border-color: #b8cdee; }
+.app-shell[data-theme="light"] .mode-rule-note.pink { background: #fff2f5; border-color: #e7bcc9; }
+.app-shell[data-theme="light"] .mode-rule-note.pink strong { color: #903651; }
+.app-shell[data-theme="light"] :is(.brand small, .runtime-state small, .companion-state small) { color: #526176; }
+.app-shell[data-theme="light"] .section-heading p { color: #526176; }
+/* Match the verified desktop client's semantic palette and readable controls. */
+.app-shell[data-theme="light"] {
+ --ink: #17243a; --muted: #52627a; --panel: #fff; --line: #ced9e8;
+ --text-primary: #17243a; --text-secondary: #52627a; --text-muted: #627189;
+ --surface-soft: #f3f6fb; --accent: #2452ff; --accent-soft: #eaf0ff;
+ --shadow-card: 0 5px 18px rgba(31,58,106,.045);
+ background: radial-gradient(ellipse at 5% 20%, #e3edff, transparent 38%), #f1f5fc;
+}
+.app-shell[data-theme="light"] :is(.hero, .talking-panel, .model-create-card, .model-step-card, .model-result-card, .model-project-title) { box-shadow: var(--shadow-card); }
+.app-shell[data-theme="light"] .home-hero { background: #fff; }
+.app-shell[data-theme="light"] .content :is(p,small,label,input,textarea,select) { font-size: 13px; line-height: 1.65; }
+.app-shell[data-theme="light"] :is(input,textarea,select) { color: #17243a; background: #fff; border-color: #ced9e8; }
+.app-shell[data-theme="light"] :is(input,textarea)::placeholder { color: #627189; opacity: 1; }
+.app-shell[data-theme="light"] :is(.primary,.hero-button,.new-task:not(.secondary-top-action)) { background: #2452ff; color: #fff; border-color: #2452ff; }
+.app-shell[data-theme="light"] :is(.primary,.hero-button,.new-task:not(.secondary-top-action)):hover:not(:disabled) { background: #183ed1; color: #fff; }
+.app-shell[data-theme="light"] :is(button,input,select,textarea):disabled { opacity: 1; color: #59667b; background: #edf1f6; border-color: #d1dae6; box-shadow: none; cursor: not-allowed; }
+.app-shell[data-theme="light"] button:disabled :is(strong,small,span) { color: #59667b; }
+.app-shell[data-theme="light"] :is(.runtime-state small,.companion-state small,.brand small) { font-size: 11px; }
+@media(prefers-reduced-motion:reduce) { .app-shell * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+.app-shell[data-theme="light"] .subpage-title p { color: #52627a; }
+.app-shell[data-theme="light"] .voice-review-card { background: #f3f6fb; border: 1px solid #ced9e8; color: #17243a; }
+.app-shell[data-theme="light"] .voice-review-card :is(small,span) { color: #52627a; }
+.app-shell[data-theme="light"] .talking-primary-row > button:not(.secondary):not(:disabled) { background: #2452ff; color: #fff; }
+.app-shell[data-theme="light"] .mock-video { background: #edf1f6; color: #52627a; border-color: #ced9e8; }
+.app-shell[data-theme="light"] .mock-video > small { color: #52627a; }
+.app-shell[data-theme="light"] .review-badge { background: #fff3dc; color: #80520a; border-color: #d8bd80; }
+.app-shell[data-theme="light"] .review-choice button:not(.secondary):not(:disabled) { background: #2452ff; color: #fff; }
