@@ -190,33 +190,36 @@ function Assert-TalkingHeadContract {
     $bitmap.Dispose()
   }
 
-  Add-Type -AssemblyName System.Net.Http
-  $client = [System.Net.Http.HttpClient]::new()
-  $client.Timeout = [TimeSpan]::FromSeconds(180)
   try {
-    $multipart = [System.Net.Http.MultipartFormDataContent]::new()
-    foreach ($entry in ([ordered]@{
-      mode = "native"
-      speech_source = "native_natural"
-      script = "今天我们用一段完全合成的测试内容，核对网页报价和实际执行器是否保持一致。"
-      native_voice_mode = "random"
-      native_run_strategy = "economy"
-      native_workflow_variant = "production"
-      native_duration_planning = "adaptive_6_15_candidate"
-      quality_mode = "clear"
-      target_ratio = "9:16"
-      camera_continuity = "strict_locked"
-    }).GetEnumerator()) {
-      $multipart.Add([System.Net.Http.StringContent]::new([string]$entry.Value), [string]$entry.Key)
+    # Windows PowerShell's MultipartFormDataContent serialization is not
+    # accepted consistently by the Next/undici FormData parser. curl.exe uses
+    # the same standards-compliant multipart request shape as a browser upload.
+    $submitResponsePath = Join-Path $EvidenceRoot "talking-head-submit-response.json"
+    $curlArgs = @(
+      "--silent", "--show-error",
+      "--output", $submitResponsePath,
+      "--write-out", "%{http_code}",
+      "--request", "POST",
+      "--form-string", "mode=native",
+      "--form-string", "speech_source=native_natural",
+      "--form-string", "script=今天我们用一段完全合成的测试内容，核对网页报价和实际执行器是否保持一致。",
+      "--form-string", "native_voice_mode=random",
+      "--form-string", "native_run_strategy=economy",
+      "--form-string", "native_workflow_variant=production",
+      "--form-string", "native_duration_planning=adaptive_6_15_candidate",
+      "--form-string", "quality_mode=clear",
+      "--form-string", "target_ratio=9:16",
+      "--form-string", "camera_continuity=strict_locked",
+      "--form", "image=@$imagePath;type=image/png;filename=synthetic-portrait.png",
+      "http://127.0.0.1:4318/talking-head/jobs"
+    )
+    $submitStatus = (& curl.exe @curlArgs | Out-String).Trim()
+    $submitText = if (Test-Path -LiteralPath $submitResponsePath -PathType Leaf) {
+      Get-Content -LiteralPath $submitResponsePath -Raw -Encoding UTF8
+    } else {
+      ""
     }
-    $imageBytes = [IO.File]::ReadAllBytes($imagePath)
-    $imagePart = [System.Net.Http.ByteArrayContent]::new($imageBytes)
-    $imagePart.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("image/png")
-    $multipart.Add($imagePart, "image", "synthetic-portrait.png")
-
-    $submitResponse = $client.PostAsync("http://127.0.0.1:4318/talking-head/jobs", $multipart).GetAwaiter().GetResult()
-    $submitText = $submitResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    if (-not $submitResponse.IsSuccessStatusCode) {
+    if ($LASTEXITCODE -ne 0 -or $submitStatus -notmatch '^2\d\d$') {
       throw "Installed talking-head HTTP submit failed: $submitText"
     }
     $submit = $submitText | ConvertFrom-Json
@@ -238,13 +241,14 @@ function Assert-TalkingHeadContract {
       throw "Clean Windows install did not report missing RunningHub configuration before submission."
     }
 
-    $empty = [System.Net.Http.StringContent]::new("")
-    $startResponse = $client.PostAsync("http://127.0.0.1:4318/talking-head/jobs/$($job.id)/start", $empty).GetAwaiter().GetResult()
-    $startText = $startResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    if ($startResponse.IsSuccessStatusCode -or $startText -notmatch "配置|生成通道") {
+    $startText = (& curl.exe --silent --show-error --request POST --header "Content-Length: 0" "http://127.0.0.1:4318/talking-head/jobs/$($job.id)/start" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $startText -notmatch "配置|生成通道") {
       throw "Missing generation configuration was not blocked with a friendly message."
     }
-    $afterBlockedText = $client.GetStringAsync("http://127.0.0.1:4318/talking-head/jobs/$($job.id)").GetAwaiter().GetResult()
+    $afterBlockedText = (& curl.exe --silent --show-error --fail-with-body "http://127.0.0.1:4318/talking-head/jobs/$($job.id)" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+      throw "Blocked talking-head task could not be read back."
+    }
     $afterBlocked = $afterBlockedText | ConvertFrom-Json
     if ([string]$afterBlocked.job.state -ne "preflight" -or
         [bool]$afterBlocked.job.paid_submission_started -eq $true -or
@@ -280,7 +284,10 @@ process.stdout.write(JSON.stringify(failed));
       throw "Installed failure-task recorder could not execute."
     }
     $failure = $failureText | ConvertFrom-Json
-    $listedText = $client.GetStringAsync("http://127.0.0.1:4318/talking-head/jobs").GetAwaiter().GetResult()
+    $listedText = (& curl.exe --silent --show-error --fail-with-body "http://127.0.0.1:4318/talking-head/jobs" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+      throw "Talking-head task list could not be read back."
+    }
     $listed = $listedText | ConvertFrom-Json
     $visibleFailure = @($listed.jobs | Where-Object { [string]$_.id -eq [string]$failure.id })
     if ($visibleFailure.Count -ne 1 -or
@@ -304,7 +311,7 @@ process.stdout.write(JSON.stringify(failed));
       synthetic_duration_seconds = 7
       webpage_budget_rh_coins = 137
       executor_preflight_budget_rh_coins = 137
-      http_submit_status = [int]$submitResponse.StatusCode
+      http_submit_status = [int]$submitStatus
       failed_task_listed = $true
       failed_task_actual_cost_rh_coins = 0
       missing_configuration_blocked_before_external_request = $true
@@ -314,9 +321,7 @@ process.stdout.write(JSON.stringify(failed));
     }
     $evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceRoot "talking-head-contract.json") -Encoding UTF8
     return $evidence
-  } finally {
-    $client.Dispose()
-  }
+  } finally {}
 }
 
 function Invoke-PackageInstaller {
