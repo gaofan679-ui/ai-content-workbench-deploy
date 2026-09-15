@@ -28,6 +28,13 @@ WINDOWS_GATE_CHECKS = {
     "web_workbench_prebuilt_runtime": "passed",
     "web_workbench_launch": "passed",
     "post_install_receipt": "passed",
+    "talking_head_http_submit": "passed_with_7_second_synthetic_material",
+    "talking_head_budget_parity": "passed_137_rh_coins_webpage_and_executor",
+    "talking_head_failed_task_visibility": "passed",
+    "talking_head_missing_configuration_gate": "passed_before_external_request",
+    "talking_head_paid_calls": 0,
+    "talking_head_external_uploads": 0,
+    "historical_project_output_and_config_preservation": "passed",
 }
 WINDOWS_MODULE_GATE_CHECKS = {
     "historical_upgrade": "installed_and_verified",

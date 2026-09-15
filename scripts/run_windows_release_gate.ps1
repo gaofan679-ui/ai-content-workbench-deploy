@@ -168,6 +168,157 @@ function Assert-InstalledWorkbench {
   }
 }
 
+function Assert-TalkingHeadContract {
+  param([string]$Workspace, [string]$SkillsHome)
+
+  $webRoot = Join-Path $Workspace "系统文件_无需打开\tools\web-workbench"
+  $runtimeRunner = Join-Path $webRoot "runtime\talking-head-runner.mjs"
+  $jobsRoot = Join-Path $webRoot "data\talking-head-jobs"
+  $imagePath = Join-Path $EvidenceRoot "talking-head-synthetic-9x16.png"
+  if (-not (Test-Path -LiteralPath $runtimeRunner -PathType Leaf)) {
+    throw "Installed talking-head runner is missing."
+  }
+
+  Add-Type -AssemblyName System.Drawing
+  $bitmap = [System.Drawing.Bitmap]::new(360, 640)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  try {
+    $graphics.Clear([System.Drawing.Color]::FromArgb(32, 45, 64))
+    $bitmap.Save($imagePath, [System.Drawing.Imaging.ImageFormat]::Png)
+  } finally {
+    $graphics.Dispose()
+    $bitmap.Dispose()
+  }
+
+  Add-Type -AssemblyName System.Net.Http
+  $client = [System.Net.Http.HttpClient]::new()
+  $client.Timeout = [TimeSpan]::FromSeconds(180)
+  try {
+    $multipart = [System.Net.Http.MultipartFormDataContent]::new()
+    foreach ($entry in ([ordered]@{
+      mode = "native"
+      speech_source = "native_natural"
+      script = "今天我们用一段完全合成的测试内容，核对网页报价和实际执行器是否保持一致。"
+      native_voice_mode = "random"
+      native_run_strategy = "economy"
+      native_workflow_variant = "production"
+      native_duration_planning = "adaptive_6_15_candidate"
+      quality_mode = "clear"
+      target_ratio = "9:16"
+      camera_continuity = "strict_locked"
+    }).GetEnumerator()) {
+      $multipart.Add([System.Net.Http.StringContent]::new([string]$entry.Value), [string]$entry.Key)
+    }
+    $imageBytes = [IO.File]::ReadAllBytes($imagePath)
+    $imagePart = [System.Net.Http.ByteArrayContent]::new($imageBytes)
+    $imagePart.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("image/png")
+    $multipart.Add($imagePart, "image", "synthetic-portrait.png")
+
+    $submitResponse = $client.PostAsync("http://127.0.0.1:4318/talking-head/jobs", $multipart).GetAwaiter().GetResult()
+    $submitText = $submitResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if (-not $submitResponse.IsSuccessStatusCode) {
+      throw "Installed talking-head HTTP submit failed: $submitText"
+    }
+    $submit = $submitText | ConvertFrom-Json
+    $job = $submit.job
+    if ([string]$job.state -ne "preflight" -or
+        [int]$job.duration -ne 7 -or
+        [int]$job.measured_duration -ne 7 -or
+        [int]$job.budget_limit -ne 137 -or
+        [int]$job.estimated_rh_coins -ne 137) {
+      throw "Talking-head webpage and executor budget contract did not resolve to 7 seconds / 137 RH coins."
+    }
+    $preflight = [string]$job.preflight
+    foreach ($expected in @("含安全余量约 137 RH币", "本段预算 137 RH币", "未上传素材、未创建任务、未产生费用")) {
+      if (-not $preflight.Contains($expected)) {
+        throw "Talking-head executor preflight is missing expected evidence: $expected"
+      }
+    }
+    if ([string]$job.generation_configuration.status -ne "missing") {
+      throw "Clean Windows install did not report missing RunningHub configuration before submission."
+    }
+
+    $empty = [System.Net.Http.StringContent]::new("")
+    $startResponse = $client.PostAsync("http://127.0.0.1:4318/talking-head/jobs/$($job.id)/start", $empty).GetAwaiter().GetResult()
+    $startText = $startResponse.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if ($startResponse.IsSuccessStatusCode -or $startText -notmatch "配置|生成通道") {
+      throw "Missing generation configuration was not blocked with a friendly message."
+    }
+    $afterBlockedText = $client.GetStringAsync("http://127.0.0.1:4318/talking-head/jobs/$($job.id)").GetAwaiter().GetResult()
+    $afterBlocked = $afterBlockedText | ConvertFrom-Json
+    if ([string]$afterBlocked.job.state -ne "preflight" -or
+        [bool]$afterBlocked.job.paid_submission_started -eq $true -or
+        [bool]$afterBlocked.job.external_request_started -eq $true) {
+      throw "Missing-configuration gate changed the task or started an external request."
+    }
+
+    New-Item -ItemType Directory -Force -Path $jobsRoot | Out-Null
+    $failureProbe = Join-Path $EvidenceRoot "talking-head-failure-probe.mjs"
+    $probeSource = @'
+import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
+const [runnerPath, jobsRoot] = process.argv.slice(2);
+const { recordTalkingPreflightFailure } = await import(pathToFileURL(runnerPath).href);
+const id = randomUUID();
+const createdAt = new Date().toISOString();
+const failed = recordTalkingPreflightFailure(jobsRoot, {
+  id,
+  mode: "native",
+  project_name: "Windows 云端失败任务展示验收",
+  state: "preflight",
+  duration: 7,
+  measured_duration: 7,
+  budget_limit: 137,
+  estimated_rh_coins: 137,
+  created_at: createdAt,
+}, new Error("budget guardEstimateRhCoins mismatch"));
+process.stdout.write(JSON.stringify(failed));
+'@
+    [IO.File]::WriteAllText($failureProbe, $probeSource, [Text.UTF8Encoding]::new($false))
+    $failureText = & node.exe $failureProbe $runtimeRunner $jobsRoot
+    if ($LASTEXITCODE -ne 0) {
+      throw "Installed failure-task recorder could not execute."
+    }
+    $failure = $failureText | ConvertFrom-Json
+    $listedText = $client.GetStringAsync("http://127.0.0.1:4318/talking-head/jobs").GetAwaiter().GetResult()
+    $listed = $listedText | ConvertFrom-Json
+    $visibleFailure = @($listed.jobs | Where-Object { [string]$_.id -eq [string]$failure.id })
+    if ($visibleFailure.Count -ne 1 -or
+        [string]$visibleFailure[0].state -ne "failed" -or
+        [string]$visibleFailure[0].failure_stage -ne "preflight" -or
+        [int]$visibleFailure[0].actual_cost_rh_coins -ne 0 -or
+        [bool]$visibleFailure[0].external_request_started -ne $false -or
+        [string]$visibleFailure[0].error -notmatch "任务已保留在任务中心") {
+      throw "Failed talking-head preflight was not persisted for Task Center visibility."
+    }
+
+    $clientFiles = @(Get-ChildItem -LiteralPath (Join-Path $webRoot "dist\client") -File -Recurse)
+    $friendlyUi = $clientFiles | Select-String -SimpleMatch "任务已保留在任务中心" -Quiet
+    if (-not $friendlyUi) {
+      throw "Prebuilt Windows client is missing the friendly failed-task message."
+    }
+
+    $evidence = [ordered]@{
+      status = "passed"
+      route = "native_natural/economy/production/clear/9:16/adaptive_6_15_candidate"
+      synthetic_duration_seconds = 7
+      webpage_budget_rh_coins = 137
+      executor_preflight_budget_rh_coins = 137
+      http_submit_status = [int]$submitResponse.StatusCode
+      failed_task_listed = $true
+      failed_task_actual_cost_rh_coins = 0
+      missing_configuration_blocked_before_external_request = $true
+      paid_calls = 0
+      external_uploads = 0
+      skills_home = $SkillsHome
+    }
+    $evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceRoot "talking-head-contract.json") -Encoding UTF8
+    return $evidence
+  } finally {
+    $client.Dispose()
+  }
+}
+
 function Invoke-PackageInstaller {
   param([string]$PackageRoot, [string]$Workspace, [string]$SkillsHome, [string]$LogName)
   $installer = Join-Path $PackageRoot "系统文件_无需打开\installer\Install_AI_Content_Workbench.ps1"
@@ -325,6 +476,7 @@ try {
   $cleanSkills = Join-Path $OutputRoot "clean-first-install\skills"
   Invoke-CustomerDeployment -TicketPath $firstTicket -Workspace $cleanWorkspace -SkillsHome $cleanSkills -LogName "clean-first-install.log"
   Assert-InstalledWorkbench -Workspace $cleanWorkspace -SkillsHome $cleanSkills -Label "clean first install"
+  $talkingHeadContract = Assert-TalkingHeadContract -Workspace $cleanWorkspace -SkillsHome $cleanSkills
   Stop-GateProcesses
 
   $recoveryWorkspace = Join-Path $OutputRoot "interrupted-recovery\AIContentWorkbench"
@@ -394,6 +546,13 @@ try {
       web_workbench_launch = "passed"
       post_install_receipt = "passed"
       customer_module_readiness = "passed_six_modules_using_installed_tutorial_layout"
+      talking_head_http_submit = "passed_with_7_second_synthetic_material"
+      talking_head_budget_parity = "passed_137_rh_coins_webpage_and_executor"
+      talking_head_failed_task_visibility = "passed"
+      talking_head_missing_configuration_gate = "passed_before_external_request"
+      talking_head_paid_calls = [int]$talkingHeadContract.paid_calls
+      talking_head_external_uploads = [int]$talkingHeadContract.external_uploads
+      historical_project_output_and_config_preservation = "passed"
     }
     package_sha256 = @($FirstInstallSha256.ToLowerInvariant(), $UpgradeSha256.ToLowerInvariant())
   }

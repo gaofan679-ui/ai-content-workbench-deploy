@@ -173,6 +173,11 @@ class AutopilotTests(unittest.TestCase):
         self.assertIn("post_installer_detached", deploy_source)
         self.assertIn("stdout=stdout_handle", deploy_source)
         self.assertIn("stderr=stderr_handle", deploy_source)
+        self.assertIn('activation_environment["CODEX_SKILLS_HOME"] = str(skills_home)', deploy_source)
+        self.assertIn('activation_environment["WORKBENCH_SKILLS_ROOT"] = str(skills_home)', deploy_source)
+        self.assertIn('(\"python\", \"WORKBENCH_PYTHON\")', deploy_source)
+        self.assertIn('(\"ffmpeg\", \"WORKBENCH_FFMPEG\")', deploy_source)
+        self.assertIn('(\"ffprobe\", \"WORKBENCH_FFPROBE\")', deploy_source)
         self.assertIn("service_activation = activate_windows_web_services", deploy_source)
         self.assertLess(
             deploy_source.index("if result.returncode != 0:"),

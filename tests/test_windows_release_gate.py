@@ -106,6 +106,22 @@ class WindowsReleaseGateTests(unittest.TestCase):
         )
         self.assertNotIn("04_使用教程\\docs\\04_打开使用教程.html", gate_script)
 
+    def test_talking_head_contract_uses_installed_runtime_and_zero_cost_synthetic_input(self) -> None:
+        gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function Assert-TalkingHeadContract", gate_script)
+        self.assertIn('native_run_strategy = "economy"', gate_script)
+        self.assertIn('native_workflow_variant = "production"', gate_script)
+        self.assertIn('quality_mode = "clear"', gate_script)
+        self.assertIn('target_ratio = "9:16"', gate_script)
+        self.assertIn('[int]$job.duration -ne 7', gate_script)
+        self.assertIn('[int]$job.budget_limit -ne 137', gate_script)
+        self.assertIn("recordTalkingPreflightFailure", gate_script)
+        self.assertIn("任务已保留在任务中心", gate_script)
+        self.assertIn('talking_head_paid_calls = [int]$talkingHeadContract.paid_calls', gate_script)
+        self.assertIn('talking_head_external_uploads = [int]$talkingHeadContract.external_uploads', gate_script)
+
     def test_module_readiness_only_blocks_managed_module_failures(self) -> None:
         gate_script = (ROOT / "scripts" / "run_windows_release_gate.ps1").read_text(
             encoding="utf-8"

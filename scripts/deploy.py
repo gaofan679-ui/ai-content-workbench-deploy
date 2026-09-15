@@ -1538,6 +1538,7 @@ def wait_for_windows_web_services(*, timeout_seconds: int = 90) -> dict[str, Any
 
 def activate_windows_web_services(
     workbench: Path,
+    skills_home: Path,
     environment: dict[str, Any],
 ) -> dict[str, Any]:
     """Start long-running services after the captured installer has returned.
@@ -1557,7 +1558,21 @@ def activate_windows_web_services(
     log_root.mkdir(parents=True, exist_ok=True)
     activation_environment = os.environ.copy()
     activation_environment["AI_WORKBENCH_HOME"] = str(workbench)
-    node_record = ((environment.get("tools") or {}).get("node") or {})
+    # The installer has already selected and verified one authoritative Skill
+    # directory.  Pass that exact directory to the long-running service so a
+    # customer's unrelated .codex/.agents copies can never win by discovery.
+    activation_environment["CODEX_SKILLS_HOME"] = str(skills_home)
+    activation_environment["WORKBENCH_SKILLS_ROOT"] = str(skills_home)
+    tool_records = environment.get("tools") or {}
+    for tool_name, env_name in (
+        ("python", "WORKBENCH_PYTHON"),
+        ("ffmpeg", "WORKBENCH_FFMPEG"),
+        ("ffprobe", "WORKBENCH_FFPROBE"),
+    ):
+        tool_path = str((tool_records.get(tool_name) or {}).get("path") or "").strip()
+        if tool_path and Path(tool_path).is_file():
+            activation_environment[env_name] = tool_path
+    node_record = (tool_records.get("node") or {})
     node_path = str(node_record.get("path") or "").strip()
     node_executable = Path(node_path) if node_path else None
     if node_executable is None or not node_executable.is_file():
@@ -1565,8 +1580,13 @@ def activate_windows_web_services(
         node_executable = Path(discovered) if discovered else None
     if node_executable is None or not node_executable.is_file():
         raise DeploymentError("安装后未找到可执行的 Node.js，无法启动网页工作台。")
+    tool_parents = [str(node_executable.parent)]
+    for env_name in ("WORKBENCH_PYTHON", "WORKBENCH_FFMPEG", "WORKBENCH_FFPROBE"):
+        configured_tool = activation_environment.get(env_name, "")
+        if configured_tool:
+            tool_parents.append(str(Path(configured_tool).parent))
     activation_environment["PATH"] = os.pathsep.join(
-        (str(node_executable.parent), activation_environment.get("PATH", ""))
+        [*dict.fromkeys(tool_parents), activation_environment.get("PATH", "")]
     )
 
     creation_flags = 0
@@ -2306,7 +2326,7 @@ def run_full_workbench_install(
         before_service_activation(resume_context)
     service_activation: dict[str, Any]
     if manifest["platform"] == "windows":
-        service_activation = activate_windows_web_services(workbench, environment)
+        service_activation = activate_windows_web_services(workbench, skills_home, environment)
     else:
         service_activation = activate_macos_web_services(workbench)
     module_readiness = collect_module_readiness(workbench, skills_home, environment)
@@ -2376,7 +2396,7 @@ def run_first_install(
     checked = verify_first_install(package_dir / "codex_skills", skills_home, workbench)
     service_activation: dict[str, Any]
     if manifest["platform"] == "windows":
-        service_activation = activate_windows_web_services(workbench, environment)
+        service_activation = activate_windows_web_services(workbench, skills_home, environment)
     else:
         service_activation = activate_macos_web_services(workbench)
     module_readiness = collect_module_readiness(workbench, skills_home, environment)
