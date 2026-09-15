@@ -10,5 +10,8 @@
   "environment_preflight_required": true, "installed_skill_count": 38,
   "visible_web_entries": ["爆款重构", "AI 口播", "模特资产", "爆款提取", "珠宝种草"],
   "customer_side_npm_install_or_build": false, "paid_calls_during_validation": 0, "external_uploads_during_validation": 0,
-  "real_machine_status": "github_windows_gate_pending", "deployment_entry_revision": "rc5"
+  "real_machine_status": "github_windows_clean_install_historical_upgrade_interrupted_recovery_talking_head_contract_pass_run_34927666818",
+  "windows_gate_run_url": "https://github.com/gaofan679-ui/ai-content-workbench-deploy/actions/runs/34927666818",
+  "windows_gate_report_sha256": "3f1d9a9206a38f19c911d2b07795e9fc08d3bd65c5da975ea56b3c0526b5c098",
+  "deployment_entry_revision": "rc5"
 }
