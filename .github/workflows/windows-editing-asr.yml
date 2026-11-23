@@ -26,8 +26,8 @@ jobs:
         run: |
           if ([string]::IsNullOrWhiteSpace($env:BUNDLE_URL)) { throw 'No private validation input' }
           $bundle = Join-Path $env:RUNNER_TEMP 'editing-r11-asr-inputs.zip'
-          try { Invoke-WebRequest -Uri $env:BUNDLE_URL -OutFile $bundle -TimeoutSec 120 -ErrorAction Stop }
-          catch { throw 'Private validation input download failed' }
+          curl.exe --disable --fail --silent --connect-timeout 10 --max-time 50 --retry 2 --retry-delay 2 --retry-all-errors --output $bundle --write-out "Private input download HTTP %{http_code} (%{size_download} bytes)`n" $env:BUNDLE_URL
+          if ($LASTEXITCODE -ne 0) { throw "Private validation input download failed (curl $LASTEXITCODE)" }
           if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne '1531ae5526007fef39fd80199e0d6d05ecc77a370c99c71f05427f9485caf4d8') { throw 'Input bundle SHA mismatch' }
           "ASR_INPUTS=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install Windows CPU transcription and fetch public model weights
