@@ -1,0 +1,65 @@
+name: Windows R11 editing validation
+on:
+  push:
+    branches: [validation/editing-r11-windows-20261123]
+    paths: ['.github/workflows/windows-editing-r11.yml', 'validate_editing_r11.py']
+permissions:
+  contents: read
+jobs:
+  validate-editing:
+    name: Install, render, save and reopen
+    runs-on: windows-latest
+    timeout-minutes: 32
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Download private test inputs and verify SHA-256
+        shell: pwsh
+        env:
+          BUNDLE_URL: ${{ secrets.EDITING_R11_VALIDATION_INPUT_20261123 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:BUNDLE_URL)) { throw 'No private validation input' }
+          $inputsDir = Join-Path $env:RUNNER_TEMP 'verified-inputs'
+          $zipPath = Join-Path $env:RUNNER_TEMP 'editing-r11-inputs.zip'
+          try { Invoke-WebRequest -Uri $env:BUNDLE_URL -OutFile $zipPath -TimeoutSec 120 -ErrorAction Stop }
+          catch { throw 'Private validation input download failed' }
+          if ((Get-FileHash $zipPath -Algorithm SHA256).Hash -ne '647609597d9da1c44a8164aa5619ec3a9ed77c4debca1303e70f3adb508c4a24') { throw 'Input bundle SHA mismatch' }
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $inputsDir
+          "R11_INPUTS=$inputsDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install the verified rendering dependencies
+        shell: pwsh
+        run: |
+          python -m pip install Pillow==12.3.0 numpy==2.4.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          npm ci --ignore-scripts --no-audit --no-fund --prefix $env:R11_INPUTS
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Render generated fixture and reopen the saved project
+        shell: pwsh
+        run: |
+          $chrome = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe") |
+            Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $chrome) { throw 'Chrome was not found on the Windows image' }
+          python -X utf8 validate_editing_r11.py --skill "$env:R11_INPUTS\skill-r11.zip" --template "$env:R11_INPUTS\template-r11.zip" --node-modules "$env:R11_INPUTS\node_modules" --browser $chrome --output "$env:RUNNER_TEMP\editing-r11-result"
+          exit $LASTEXITCODE
+      - name: Upload non-private verification receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-editing-r11-verification
+          path: |
+            ${{ runner.temp }}/editing-r11-result/environment.json
+            ${{ runner.temp }}/editing-r11-result/validation.json
+          if-no-files-found: warn
+          retention-days: 7
