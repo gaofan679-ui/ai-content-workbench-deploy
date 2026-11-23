@@ -1,0 +1,58 @@
+name: Windows editing local transcription validation
+on:
+  push:
+    branches: [validation/editing-r11-windows-20261123]
+    paths: ['.github/workflows/windows-editing-asr.yml', 'validate_editing_windows_asr.py']
+permissions:
+  contents: read
+jobs:
+  transcribe-new-clip:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+      HF_HUB_DISABLE_XET: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download private candidate and verify SHA-256
+        shell: pwsh
+        env:
+          BUNDLE_URL: ${{ secrets.EDITING_R11_ASR_INPUT_20261123 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:BUNDLE_URL)) { throw 'No private validation input' }
+          $bundle = Join-Path $env:RUNNER_TEMP 'editing-r11-asr-inputs.zip'
+          try { Invoke-WebRequest -Uri $env:BUNDLE_URL -OutFile $bundle -TimeoutSec 120 -ErrorAction Stop }
+          catch { throw 'Private validation input download failed' }
+          if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne '1531ae5526007fef39fd80199e0d6d05ecc77a370c99c71f05427f9485caf4d8') { throw 'Input bundle SHA mismatch' }
+          "ASR_INPUTS=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Install Windows CPU transcription and fetch public model weights
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          python -m pip install Pillow==12.3.0 numpy==2.4.3 faster-whisper==1.2.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:ASR_MODEL = Join-Path $env:RUNNER_TEMP 'whisper-small'
+          python -c "import os; from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', revision='536b0662742c02347bc0e980a01041f333bce120', local_dir=os.environ['ASR_MODEL'], allow_patterns=['config.json','model.bin','tokenizer.json','vocabulary.txt'])"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "ASR_MODEL=$env:ASR_MODEL" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Transcribe a new Mandarin clip and verify timestamps
+        shell: pwsh
+        run: |
+          python validate_editing_windows_asr.py --bundle "$env:ASR_INPUTS" --model "$env:ASR_MODEL" --output "$env:RUNNER_TEMP\editing-r11-asr-result"
+          exit $LASTEXITCODE
+      - name: Upload synthetic audio verification receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-editing-new-source-asr-verification
+          path: ${{ runner.temp }}/editing-r11-asr-result/asr-verification.json
+          if-no-files-found: warn
+          retention-days: 7
