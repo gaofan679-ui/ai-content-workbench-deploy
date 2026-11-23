@@ -22,7 +22,7 @@ def run(bundle, model, root):
         archive.extractall(inputs)
     skill = inputs / "测试用户 profile/.workbuddy/skills/ai-video-editing-post"
     manifest = read_json(skill / "distribution.json")
-    assert manifest["version"] == "0.3.3-r11-win1"
+    assert manifest["version"] == "0.3.3-r11-win2"
     for name, sha in manifest["files"].items():
         assert digest(skill / name) == sha, name
     paths = skill / "scripts"
@@ -42,7 +42,15 @@ def run(bundle, model, root):
     environment["SYNESTIA_EDITING_SPEECH_CONFIG"] = str(config)
     transcript = root / "transcript"
     invocation = [sys.executable, str(review), "transcript", "--prepared", str(prepared / "prepared.json")]
-    subprocess.run([*invocation, "--out", str(transcript)], env=environment, check=True)
+    try:
+        subprocess.run([*invocation, "--out", str(transcript)], env=environment, check=True)
+    except subprocess.CalledProcessError:
+        # This runner only ever processes its generated speech sample.
+        for name in ("backend-process.internal.json", "backend-result.internal.json"):
+            detail = transcript / name
+            if detail.is_file():
+                print(detail.read_text(encoding="utf-8"), file=sys.stderr)
+        raise
     receipt = read_json(transcript / "evidence/transcript-consumption.internal.json")
     bound_output = read_json(Path(receipt["word_evidence"]["path"]))
     raw_text = bound_output["analysis"]["text"]

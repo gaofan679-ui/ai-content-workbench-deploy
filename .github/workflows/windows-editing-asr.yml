@@ -22,13 +22,13 @@ jobs:
       - name: Download private candidate and verify SHA-256
         shell: pwsh
         env:
-          BUNDLE_URL: ${{ secrets.EDITING_R11_ASR_INPUT_20261123 }}
+          BUNDLE_URL: ${{ secrets.EDITING_R11_ASR_WIN2_20261123 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:BUNDLE_URL)) { throw 'No private validation input' }
           $bundle = Join-Path $env:RUNNER_TEMP 'editing-r11-asr-inputs.zip'
           curl.exe --disable --fail --silent --connect-timeout 10 --max-time 50 --retry 2 --retry-delay 2 --retry-all-errors --output $bundle --write-out "Private input download HTTP %{http_code} (%{size_download} bytes)`n" $env:BUNDLE_URL
           if ($LASTEXITCODE -ne 0) { throw "Private validation input download failed (curl $LASTEXITCODE)" }
-          if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne '1531ae5526007fef39fd80199e0d6d05ecc77a370c99c71f05427f9485caf4d8') { throw 'Input bundle SHA mismatch' }
+          if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne '0370e5df43544a29bb60f82520de9efb701289488d67c2bc64c7a629c53b3099') { throw 'Input bundle SHA mismatch' }
           "ASR_INPUTS=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install Windows CPU transcription and fetch public model weights
         shell: pwsh
