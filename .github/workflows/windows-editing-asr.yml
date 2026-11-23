@@ -22,13 +22,13 @@ jobs:
       - name: Download private candidate and verify SHA-256
         shell: pwsh
         env:
-          BUNDLE_URL: ${{ secrets.EDITING_R11_ASR_WIN2_20261123 }}
+          BUNDLE_URL: ${{ secrets.EDITING_R11_ASR_WIN3_20261123 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:BUNDLE_URL)) { throw 'No private validation input' }
           $bundle = Join-Path $env:RUNNER_TEMP 'editing-r11-asr-inputs.zip'
           curl.exe --disable --fail --silent --connect-timeout 10 --max-time 50 --retry 2 --retry-delay 2 --retry-all-errors --output $bundle --write-out "Private input download HTTP %{http_code} (%{size_download} bytes)`n" $env:BUNDLE_URL
           if ($LASTEXITCODE -ne 0) { throw "Private validation input download failed (curl $LASTEXITCODE)" }
-          if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne '0370e5df43544a29bb60f82520de9efb701289488d67c2bc64c7a629c53b3099') { throw 'Input bundle SHA mismatch' }
+          if ((Get-FileHash $bundle -Algorithm SHA256).Hash -ne 'c24ea59594e4f5639756a6b2cde721d427f128a22a29b7d150e611dbc3960525') { throw 'Input bundle SHA mismatch' }
           "ASR_INPUTS=$bundle" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install Windows CPU transcription and fetch public model weights
         shell: pwsh
@@ -37,7 +37,7 @@ jobs:
             choco install ffmpeg -y --no-progress
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
-          python -m pip install Pillow==12.3.0 numpy==2.4.3 faster-whisper==1.2.1
+          python -m pip install Pillow==12.3.0 numpy==2.4.3 faster-whisper==1.2.1 av==18.1.0
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:ASR_MODEL = Join-Path $env:RUNNER_TEMP 'whisper-small'
           python -c "import os; from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', revision='536b0662742c02347bc0e980a01041f333bce120', local_dir=os.environ['ASR_MODEL'], allow_patterns=['config.json','model.bin','tokenizer.json','vocabulary.txt'])"

@@ -1,6 +1,7 @@
 """Run the installed editing entry on a new Mandarin clip without a transcript."""
 from argparse import ArgumentParser
 import json
+from importlib.metadata import version
 import os
 from pathlib import Path
 import platform
@@ -22,7 +23,7 @@ def run(bundle, model, root):
         archive.extractall(inputs)
     skill = inputs / "测试用户 profile/.workbuddy/skills/ai-video-editing-post"
     manifest = read_json(skill / "distribution.json")
-    assert manifest["version"] == "0.3.3-r11-win2"
+    assert manifest["version"] == "0.3.3-r11-win3"
     for name, sha in manifest["files"].items():
         assert digest(skill / name) == sha, name
     paths = skill / "scripts"
@@ -76,6 +77,7 @@ def run(bundle, model, root):
     write_json(root / "asr-verification.json", {
         "state": "passed", "platform": platform.system(), "machine": platform.machine(),
         "skillVersion": manifest["version"], "transcript": raw_text, "wordCount": len(words),
+        "engine": version("faster-whisper"), "audioDecoder": version("av"),
         "timingSeconds": [words[0]["start"], words[-1]["end"]],
         "matchedCurrentSource": True, "expectedTranscriptMatched": True,
         "originalOperationReused": True, "cloudRequests": 0,
